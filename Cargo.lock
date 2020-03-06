@@ -170,6 +170,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b980f2816d6ee8673b6517b52cb0e808a180efc92e5c19d02cdda79066703ef"
 
 [[package]]
+name = "gpgpu"
+version = "0.1.0"
+dependencies = [
+ "ocl",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -326,13 +333,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4072920739958adeec5abedec51af70febc58f7fff0601aaa0827c1f3c8fefd"
 dependencies = [
  "num",
-]
-
-[[package]]
-name = "ocltest"
-version = "0.1.0"
-dependencies = [
- "ocl",
 ]
 
 [[package]]

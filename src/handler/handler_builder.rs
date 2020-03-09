@@ -48,6 +48,8 @@ impl<S: Into<String>+Clone> HandlerBuilder<S> {
                 match d {
                     KernelDescriptor::Param(n,_) => { src += "double "; src += &n.clone().into(); },
                     KernelDescriptor::Buffer(n) => { src += "__global double *"; src += &n.clone().into(); }
+                    KernelDescriptor::BufDst(_) => { src += "__global double *dst"; },
+                    KernelDescriptor::BufSrc(_) => { src += "__global double *src"; }
                 };
                 src += ",";
             }
@@ -93,7 +95,11 @@ impl<S: Into<String>+Clone> HandlerBuilder<S> {
                     KernelDescriptor::Buffer(n) => {
                         let n = n.into();
                         kernel.arg_named(n.clone(),&buffers[&n])
-                    }
+                    },
+                    KernelDescriptor::BufDst(n) => 
+                        kernel.arg_named("dst".clone(),&buffers[&n.into()]),
+                    KernelDescriptor::BufSrc(n) => 
+                        kernel.arg_named("src".clone(),&buffers[&n.into()])
                 };
             }
             kernels.insert(name,kernel.build()?);

@@ -1,6 +1,8 @@
 pub enum KernelDescriptor<S: Into<String>+Clone> {
     Param(S,f64),
-    Buffer(S)
+    Buffer(S),
+    BufDst(S),
+    BufSrc(S)
 }
 
 pub enum BufferDescriptor {

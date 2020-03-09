@@ -100,7 +100,7 @@ impl<S: Into<String>+Clone> HandlerBuilder<S> {
         }
 
         Ok(super::Handler {
-            pq,
+            _pq: pq,
             kernels,
             buffers
         })

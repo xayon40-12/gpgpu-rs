@@ -8,7 +8,7 @@ use crate::dim::Dim;
 
 
 pub struct Handler {
-    pq: ProQue,
+    _pq: ProQue,
     kernels: HashMap<String,Kernel>,
     buffers: HashMap<String,Buffer<f64>>,
 }
@@ -18,12 +18,13 @@ impl Handler {
         HandlerBuilder::new(src)
     }
 
-    pub fn get<S: Into<String>+Clone>(&self, name: S) -> crate::Result<&[f64]> {
+    pub fn get<S: Into<String>+Clone>(&self, name: S) -> crate::Result<Vec<f64>> {
         let buf = &self.buffers[&name.into()];
         let len = buf.len();
-        unsafe {
-            Ok(std::slice::from_raw_parts(buf.map().read().enq()?.as_ptr(), len))
-        }
+        let mut vec = Vec::with_capacity(len);
+        unsafe { vec.set_len(len); }
+        buf.read(&mut vec).enq()?;
+        Ok(vec)
     }
 
     pub fn run<S: Into<String>+Clone>(&mut self, name: S, dim: Dim) -> ocl::Result<()> {

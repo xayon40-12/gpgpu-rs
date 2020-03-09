@@ -1,48 +1,108 @@
-use ocl::{ProQue,Buffer,Kernel};
-use std::collections::HashMap; 
+use ocl::ProQue;
+use std::collections::HashMap;
+use crate::descriptors::*;
 
-pub struct HandlerBuilder {
-    pq: Option<ProQue>,
+
+pub struct HandlerBuilder<S: Into<String>+Clone> {
     src: String,
-    kernel: Option<Kernel>,
-    buffers: HashMap<String,Buffer<i64>>,
-    params: Vec<super::Param>,
-    params_buffer: Option<Buffer<i64>>
+    kernels: Vec<(String,Vec<KernelDescriptor<S>>)>,
+    buffers: Vec<(String,BufferDescriptor)>
 }
 
-impl HandlerBuilder {
-    pub fn new(src: &str) -> HandlerBuilder {
-        HandlerBuilder {
-            pq: None,
-            src: src.to_string(),
-            kernel: None,
-            buffers: HashMap::new(),
-            params: Vec::new(),
-            params_buffer: None
+impl<S: Into<String>+Clone> HandlerBuilder<S> {
+    pub fn new(src: S) -> ocl::Result<HandlerBuilder<S>> {
+        Ok(HandlerBuilder {
+            src: src.into(),
+            kernels: Vec::new(),
+            buffers: Vec::new()
+        })
+    }
+
+    pub fn add_buffer(mut self, name: S, desc: BufferDescriptor) -> Self {
+        self.buffers.push((name.into(),desc));
+        self
+    }
+
+    pub fn add_buffers(self, buffers: Vec<(S,BufferDescriptor)>) -> Self {
+        let mut hand = self;
+        for (name,desc) in buffers {
+            hand = hand.add_buffer(name,desc);
         }
+        hand
+    }
+
+    pub fn add_kernel(mut self, name: S, desc: Vec<KernelDescriptor<S>>) -> Self {
+        self.kernels.push((name.into(),desc));
+        self
     }
 
     pub fn build(self) -> ocl::Result<super::Handler> {
-        let src = self.src.clone();
+        let mut src = String::new();
         //TODO complet src with all the outside of the program with "main" as entry point (declaration, structs, ...)
+        
+        src += "\n__kernel void main(";
+        if let Some(desc) = self.kernels.iter()
+                                        .find(|(n,_)| n == &"main".to_string())
+                                        .and_then(|(_,d)| Some(d)) {
+            for d in desc {
+                match d {
+                    KernelDescriptor::Param(n,_) => { src += "double "; src += &n.clone().into(); },
+                    KernelDescriptor::Buffer(n) => { src += "__global double *"; src += &n.clone().into(); }
+                };
+                src += ",";
+            }
+        } else {
+            panic!("No \"main\" kernel description done. Consider using add_kernel(\"main\", ...).");
+        }
+        src.pop(); // remove last unnescessary ","
+        src += ") {\n";
+        src += "    long x = get_global_id(0); long x_size = get_global_size(0);\n";
+        src += "    long y = get_global_id(0); long y_size = get_global_size(0);\n";
+        src += "    long z = get_global_id(0); long z_size = get_global_size(0);\n";
+        src += &self.src;
+        src += "\n}\n";
 
         let pq = ProQue::builder()
             .src(src)
+            .dims(1) //TODO should not be needed
             .build()?;
 
-        let buffers = self.buffers;
-        let mut kernel = pq.kernel_builder("main");
-        for (n,b) in &buffers {
-            kernel.arg_named(n,b);
+        let mut buffers = HashMap::new();
+        for (name,desc) in self.buffers {
+            match desc {
+                BufferDescriptor::Len(len) =>
+                    buffers.insert(name, pq.buffer_builder()
+                                           .len(len)
+                                           .fill_val(0f64)
+                                           .build()?),
+                BufferDescriptor::Data(data) =>
+                    buffers.insert(name, pq.buffer_builder()
+                                           .len(data.len())
+                                           .copy_host_slice(&data)
+                                           .build()?)
+            };
         }
-        let kernel = kernel.build()?;
+
+        let mut kernels = HashMap::new();
+        for (name,desc) in self.kernels {
+            let mut kernel = pq.kernel_builder(&name);
+            for desc in desc {
+                match desc {
+                    KernelDescriptor::Param(n,v) => 
+                        kernel.arg_named(n.into(),v),
+                    KernelDescriptor::Buffer(n) => {
+                        let n = n.into();
+                        kernel.arg_named(n.clone(),&buffers[&n])
+                    }
+                };
+            }
+            kernels.insert(name,kernel.build()?);
+        }
 
         Ok(super::Handler {
             pq,
-            kernel,
-            buffers: buffers,
-            params: self.params,
-            params_buffer: self.params_buffer
+            kernels,
+            buffers
         })
     }
 

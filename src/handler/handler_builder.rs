@@ -70,10 +70,10 @@ impl<S: Into<String>+Clone> HandlerBuilder<S> {
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
             match desc {
-                BufferDescriptor::Len(len) =>
+                BufferDescriptor::Len(len,val) =>
                     buffers.insert(name, pq.buffer_builder()
                                            .len(len)
-                                           .fill_val(0f64)
+                                           .fill_val(val)
                                            .build()?),
                 BufferDescriptor::Data(data) =>
                     buffers.insert(name, pq.buffer_builder()

@@ -4,6 +4,6 @@ pub enum KernelDescriptor<S: Into<String>+Clone> {
 }
 
 pub enum BufferDescriptor {
-    Len(usize),
+    Len(usize,f64), // Len(len, repeated value)
     Data(Vec<f64>)
 }

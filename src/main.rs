@@ -1,5 +1,5 @@
 use gpgpu::Handler;
-use gpgpu::descriptors::{BufferDescriptor,KernelDescriptor::*};
+use gpgpu::descriptors::{BufferDescriptor::*,KernelDescriptor::*};
 use gpgpu::Dim;
 
 fn main() -> gpgpu::Result<()> {
@@ -7,7 +7,7 @@ fn main() -> gpgpu::Result<()> {
 
     let num = 100;
     let mut gpu = Handler::builder(src)?
-        .add_buffer("u",  BufferDescriptor::Data(vec![0.0;num]))
+        .add_buffer("u", Data(vec![0.0;num]))
         .add_kernel("main", vec![Buffer("u"),Param("p",10.0)])
         .build()?;
 

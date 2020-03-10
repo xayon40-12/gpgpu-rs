@@ -1,11 +1,11 @@
+#[derive(Clone)]
 pub enum KernelDescriptor<S: Into<String>+Clone> {
     Param(S,f64),
     Buffer(S),
-    BufDst(S),
-    BufSrc(S)
+    BufArg(S,S)
 }
 
 pub enum BufferDescriptor {
-    Len(usize,f64), // Len(len, repeated value)
+    Len(f64,usize), // Len(repeated value, len)
     Data(Vec<f64>)
 }

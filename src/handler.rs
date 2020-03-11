@@ -6,11 +6,13 @@ pub use handler_builder::HandlerBuilder;
 
 use crate::dim::Dim;
 use crate::descriptors::KernelDescriptor;
+use crate::algorithms::Algorithm;
 
 
 pub struct Handler {
-    _pq: ProQue,
+    pq: ProQue,
     kernels: HashMap<String,Kernel>,
+    algorithms: HashMap<String,Algorithm<String>>,
     buffers: HashMap<String,Buffer<f64>>,
 }
 
@@ -47,4 +49,17 @@ impl Handler {
             kernel.cmd().global_work_size(dim).enq()
         }
     }
+    
+    pub fn run_algorithm<S: Into<String>+Clone>(&mut self, name: S) -> crate::Result<()> {
+        (self.algorithms[&name.into()].callback.clone())(self)
+    }
+
+    pub fn kernel_dim<S: Into<String>+Clone>(&self, kernel_name: S) -> Dim {
+        match self.kernels[&kernel_name.into()].wg_info(self.pq.device(),
+        ocl::enums::KernelWorkGroupInfo::GlobalWorkSize).unwrap() {
+            ocl::enums::KernelWorkGroupInfoResult::GlobalWorkSize(size) => size.into(),
+            _ => panic!("Dimension not available.")
+        }
+    }
+
 }

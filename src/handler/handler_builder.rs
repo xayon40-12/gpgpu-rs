@@ -2,10 +2,13 @@ use ocl::ProQue;
 use std::collections::HashMap;
 use crate::descriptors::*;
 use crate::kernels::{Kernel,self};
+use crate::algorithms::{self,Algorithm};
 
 pub struct HandlerBuilder {
     available_kernels: HashMap<String,Kernel<&'static str>>,
+    available_algorithms: HashMap<String,Algorithm<&'static str>>,
     kernels: Vec<(Kernel<String>,Option<String>)>,
+    algorithms: Vec<(Algorithm<String>,Option<String>)>,
     buffers: Vec<(String,BufferDescriptor)>
 }
 
@@ -13,7 +16,9 @@ impl HandlerBuilder {
     pub fn new() -> ocl::Result<HandlerBuilder> {
         Ok(HandlerBuilder {
             available_kernels: kernels::kernels(),
+            available_algorithms: algorithms::algorithms(),
             kernels: Vec::new(),
+            algorithms: Vec::new(),
             buffers: Vec::new()
         })
     }
@@ -43,6 +48,21 @@ impl HandlerBuilder {
 
     pub fn load_kernel_named<S: Into<String>+Clone>(mut self, name: S, as_name: S) -> Self {
         self.kernels.push((kernels::convert(&self.available_kernels[&name.clone().into()]),Some(as_name.into())));
+        self
+    }
+
+    pub fn create_algorithm<S: Into<String>+Clone>(mut self, algorithm: Algorithm<S>) -> Self {
+        self.algorithms.push((algorithms::convert(&algorithm),None));
+        self
+    }
+
+    pub fn load_algorithm<S: Into<String>+Clone>(mut self, name: S) -> Self {
+        self.algorithms.push((algorithms::convert(&self.available_algorithms[&name.clone().into()]),Some(name.into())));
+        self
+    }
+
+    pub fn load_algorithm_named<S: Into<String>+Clone>(mut self, name: S, as_name: S) -> Self {
+        self.algorithms.push((algorithms::convert(&self.available_algorithms[&name.clone().into()]),Some(as_name.into())));
         self
     }
 
@@ -114,9 +134,20 @@ impl HandlerBuilder {
             kernels.insert(name,kernel.build()?);
         }
 
+        let mut algorithms = HashMap::new();
+        for (a,loadedname) in self.algorithms {
+            for needed in &a.needed_kernels {
+                if !kernels.contains_key(needed) {
+                    panic!(format!("Missing kernel \"{}\" for algorithm \"{}\"", needed, a.name))
+                }
+            }
+            let name = loadedname.unwrap_or(a.name.clone());
+            algorithms.insert(name,a);
+        }
         Ok(super::Handler {
-            _pq: pq,
+            pq,
             kernels,
+            algorithms,
             buffers
         })
     }

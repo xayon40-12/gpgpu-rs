@@ -42,5 +42,12 @@ pub fn kernels() -> HashMap<String,Kernel<&'static str>> {
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]/b[x];"
         },
+
+
+        Kernel{
+            name: "algo_sum",
+            args: vec![Buffer("src"),Buffer("dst")],
+            src: ""
+        },
     ].into_iter().map(|k| (k.name.to_string(),k)).collect()
 }

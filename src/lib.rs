@@ -8,5 +8,6 @@ pub mod dim;
 pub use dim::Dim;
 
 pub mod kernels;
+pub mod algorithms;
 
 pub type Result<T> = ocl::Result<T>;

@@ -15,3 +15,15 @@ impl From<Dim> for SpatialDims {
         }
     }
 }
+
+impl From<[usize; 3]> for Dim {
+    fn from(dim: [usize; 3]) -> Dim {
+        if dim[2] > 1 {
+            Dim::D3(dim[0],dim[1],dim[2])
+        } else if dim [1] > 1 {
+            Dim::D2(dim[0],dim[1])
+        } else {
+            Dim::D1(dim[0])
+        }
+    }
+}

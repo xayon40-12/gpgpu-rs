@@ -32,24 +32,24 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm> {
                 let bufsrc = bufsrc.expect("No source buffer given for algorithm \"sum\"");
                 let bufdst = bufdst.expect("No destination buffer given for algorithm \"sum\"");
                 let mut spacing = 2;
-                let id = |x,spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                match dim {
-                    D1(x) => {
-                        if x<=1 { return Ok(()); }
-                        let l = id(x,spacing);
-                        h.run("algo_sum_src", D1(l), vec![bufsrc,bufdst.clone()])?;
-                        if spacing<x {
-                            spacing *= 2;
-                            let l = id(x,spacing);
-                            h.run("algo_sum", D1(l), vec![Param("spacing",spacing as f64),bufdst])?;
-                        }
-                        while spacing<x {
-                            spacing *= 2;
-                            let l = id(x,spacing);
-                            h.run("algo_sum", D1(l), vec![Param("spacing",spacing as f64)])?;
-                        }
-                    },
-                    _ => panic!("Dimensions higher than one are not handled yet.")
+                let x = match dim {
+                    D1(x) => x,
+                    D2(x,y) => x*y,
+                    D3(x,y,z) => x*y*z
+                };
+                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
+                if x<=1 { return Ok(()); }
+                let l = len(spacing);
+                h.run("algo_sum_src", D1(l), vec![bufsrc,bufdst.clone()])?;
+                if spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run("algo_sum", D1(l), vec![Param("spacing",spacing as f64),bufdst])?;
+                }
+                while spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run("algo_sum", D1(l), vec![Param("spacing",spacing as f64)])?;
                 }
                 Ok(())
             }),

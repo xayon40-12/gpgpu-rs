@@ -6,14 +6,14 @@ pub use handler_builder::HandlerBuilder;
 
 use crate::dim::Dim;
 use crate::descriptors::KernelDescriptor;
-use crate::algorithms::Algorithm;
+use crate::algorithms::Callback;
 
 
 pub struct Handler {
     pq: ProQue,
-    kernels: HashMap<String,Kernel>,
-    algorithms: HashMap<String,Algorithm<String>>,
-    buffers: HashMap<String,Buffer<f64>>,
+    kernels: HashMap<&'static str,Kernel>,
+    algorithms: HashMap<&'static str,Callback>,
+    buffers: HashMap<&'static str,Buffer<f64>>,
 }
 
 impl Handler {
@@ -21,8 +21,8 @@ impl Handler {
         HandlerBuilder::new()
     }
 
-    pub fn get<S: Into<String>+Clone>(&self, name: S) -> crate::Result<Vec<f64>> {
-        let buf = &self.buffers[&name.into()];
+    pub fn get(&self, name: &str) -> crate::Result<Vec<f64>> {
+        let buf = self.buffers.get(name).expect(&format!("Buffer \"{}\" not found",name));
         let len = buf.len();
         let mut vec = Vec::with_capacity(len);
         unsafe { vec.set_len(len); }
@@ -30,36 +30,25 @@ impl Handler {
         Ok(vec)
     }
 
-    pub fn run<S: Into<String>+Clone>(&mut self, name: S, dim: Dim, desc: Vec<KernelDescriptor<S>>) -> ocl::Result<()> {
-        unsafe { 
-            let kernel = &self.kernels[&name.into()];
-            for d in desc {
-                match d {
-                    KernelDescriptor::Param(n,v) =>
-                        kernel.set_arg(n.into(),v),
-                    KernelDescriptor::Buffer(n) => {
-                        let n = n.into();
-                        kernel.set_arg(n.clone(),&self.buffers[&n])
-                    },
-                    KernelDescriptor::BufArg(n,m) =>
-                        kernel.set_arg(m.into(),&self.buffers[&n.into()])
-                }?;
-            }
+    pub fn run(&mut self, name: &str, dim: Dim, desc: Vec<KernelDescriptor>) -> ocl::Result<()> {
+        let kernel = &self.kernels[name];
+        for d in desc {
+            match d {
+                KernelDescriptor::Param(n,v) =>
+                    kernel.set_arg(n,v),
+                KernelDescriptor::Buffer(n) =>
+                    kernel.set_arg(n,self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n))),
+                KernelDescriptor::BufArg(n,m) =>
+                    kernel.set_arg(m,self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n)))
+            }?;
+        }
 
+        unsafe {
             kernel.cmd().global_work_size(dim).enq()
         }
     }
     
-    pub fn run_algorithm<S: Into<String>+Clone>(&mut self, name: S) -> crate::Result<()> {
-        (self.algorithms[&name.into()].callback.clone())(self)
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, desc: Vec<KernelDescriptor>) -> crate::Result<()> {
+        (self.algorithms[name].clone())(self,dim,desc)
     }
-
-    pub fn kernel_dim<S: Into<String>+Clone>(&self, kernel_name: S) -> Dim {
-        match self.kernels[&kernel_name.into()].wg_info(self.pq.device(),
-        ocl::enums::KernelWorkGroupInfo::GlobalWorkSize).unwrap() {
-            ocl::enums::KernelWorkGroupInfoResult::GlobalWorkSize(size) => size.into(),
-            _ => panic!("Dimension not available.")
-        }
-    }
-
 }

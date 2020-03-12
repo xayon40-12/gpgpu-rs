@@ -2,25 +2,13 @@ use crate::descriptors::KernelDescriptor::{self,*};
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Kernel<S: Into<String>+Clone> {
-    pub name: S,
-    pub args: Vec<KernelDescriptor<S>>,
-    pub src: S
+pub struct Kernel {
+    pub name: &'static str,
+    pub args: Vec<KernelDescriptor>,
+    pub src: &'static str
 }
 
-pub fn convert<S: Into<String>+Clone>(k: &Kernel<S>) -> Kernel<String> {
-    Kernel {
-        name: k.name.clone().into(),
-        args: k.args.iter().map(|a| match a {
-            KernelDescriptor::Buffer(n) => KernelDescriptor::Buffer(n.clone().into()),
-            KernelDescriptor::BufArg(n,m) => KernelDescriptor::BufArg(n.clone().into(),m.clone().into()),
-            KernelDescriptor::Param(n,v) => KernelDescriptor::Param(n.clone().into(),*v)
-        }).collect(),
-        src: k.src.clone().into()
-    }
-}
-
-pub fn kernels() -> HashMap<String,Kernel<&'static str>> {
+pub fn kernels() -> HashMap<&'static str,Kernel> {
     vec![
         Kernel {
             name: "plus",
@@ -42,12 +30,5 @@ pub fn kernels() -> HashMap<String,Kernel<&'static str>> {
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]/b[x];"
         },
-
-
-        Kernel{
-            name: "algo_sum",
-            args: vec![Buffer("src"),Buffer("dst")],
-            src: ""
-        },
-    ].into_iter().map(|k| (k.name.to_string(),k)).collect()
+    ].into_iter().map(|k| (k.name,k)).collect()
 }

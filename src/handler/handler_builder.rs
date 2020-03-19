@@ -7,9 +7,9 @@ use crate::algorithms::{self,Algorithm};
 pub struct HandlerBuilder {
     available_kernels: HashMap<&'static str,Kernel>,
     available_algorithms: HashMap<&'static str,Algorithm>,
-    kernels: Vec<(Kernel,Option<&'static str>)>,
-    algorithms: Vec<(Algorithm,Option<&'static str>)>,
-    buffers: Vec<(&'static str,BufferDescriptor)>
+    kernels: Vec<(Kernel,Option<String>)>,
+    algorithms: Vec<(Algorithm,Option<String>)>,
+    buffers: Vec<(String,BufferDescriptor)>
 }
 
 impl HandlerBuilder {
@@ -23,12 +23,12 @@ impl HandlerBuilder {
         })
     }
 
-    pub fn add_buffer(mut self, name: &'static str, desc: BufferDescriptor) -> Self {
-        self.buffers.push((name,desc));
+    pub fn add_buffer(mut self, name: &str, desc: BufferDescriptor) -> Self {
+        self.buffers.push((name.to_string(),desc));
         self
     }
 
-    pub fn add_buffers(self, buffers: Vec<(&'static str,BufferDescriptor)>) -> Self {
+    pub fn add_buffers(self, buffers: Vec<(&str,BufferDescriptor)>) -> Self {
         let mut hand = self;
         for (name,desc) in buffers {
             hand = hand.add_buffer(name,desc);
@@ -41,13 +41,13 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn load_kernel(mut self, name: &'static str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name)));
+    pub fn load_kernel(mut self, name: &str) -> Self {
+        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name.to_string())));
         self
     }
 
-    pub fn load_kernel_named(mut self, name: &'static str, as_name: &'static str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name)));
+    pub fn load_kernel_named(mut self, name: &str, as_name: &str) -> Self {
+        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name.to_string())));
         self
     }
 
@@ -56,13 +56,13 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn load_algorithm(mut self, name: &'static str) -> Self {
-        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name)));
+    pub fn load_algorithm(mut self, name: &str) -> Self {
+        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name.to_string())));
         self
     }
 
-    pub fn load_algorithm_named(mut self, name: &'static str, as_name: &'static str) -> Self {
-        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name)));
+    pub fn load_algorithm_named(mut self, name: &str, as_name: &str) -> Self {
+        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name.to_string())));
         self
     }
 
@@ -71,10 +71,10 @@ impl HandlerBuilder {
         for (Algorithm { name,kernels,callback },loadedname) in self.algorithms {
             for k in kernels {
                 let name = k.name;
-                self.kernels.push((k,Some(name)));
+                self.kernels.push((k,Some(name.to_string())));
             }
-            let name = loadedname.unwrap_or(name);
-            if algorithms.insert(name,callback).is_some() { panic!("Cannot add two algorithms with the same name \"{}\"",name) }
+            let name = loadedname.unwrap_or(name.to_string());
+            if algorithms.insert(name.clone(),callback).is_some() { panic!("Cannot add two algorithms with the same name \"{}\"",name) }
         }
 
         let mut prog = String::new();
@@ -108,13 +108,13 @@ impl HandlerBuilder {
         for (name,desc) in self.buffers {
             match desc {
                 BufferDescriptor::Len(val,len) =>
-                    if buffers.insert(name, pq.buffer_builder()
+                    if buffers.insert(name.clone(), pq.buffer_builder()
                                            .len(len)
                                            .fill_val(val)
                                            .build()?).is_some() { 
                         panic!("Cannot add two buffers with the same name \"{}\"",name) },
                 BufferDescriptor::Data(data) =>
-                    if buffers.insert(name, pq.buffer_builder()
+                    if buffers.insert(name.clone(), pq.buffer_builder()
                                            .len(data.len())
                                            .copy_host_slice(&data)
                                            .build()?).is_some() {
@@ -144,8 +144,8 @@ impl HandlerBuilder {
                         }
                 };
             }
-            let name = loadedname.unwrap_or(name);
-            if kernels.insert(name,kernel.build()?).is_some() { panic!("Cannot add two kernels with the same name \"{}\"",name) }
+            let name = loadedname.unwrap_or(name.to_string());
+            if kernels.insert(name.clone(),kernel.build()?).is_some() { panic!("Cannot add two kernels with the same name \"{}\"",name) }
         }
 
         Ok(super::Handler {

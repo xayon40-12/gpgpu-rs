@@ -11,24 +11,44 @@ pub struct Kernel {
 pub fn kernels() -> HashMap<&'static str,Kernel> {
     vec![
         Kernel {
-            name: "plus",
+            name: "+",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]+b[x];"
         },
         Kernel {
-            name: "minus",
+            name: "-",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]-b[x];"
         },
         Kernel {
-            name: "times",
+            name: "*",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]*b[x];"
         },
         Kernel {
-            name: "divided",
+            name: "/",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]/b[x];"
+        },
+        Kernel {
+            name: "+c",
+            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            src: "dst[x] = a[x]+c;"
+        },
+        Kernel {
+            name: "-c",
+            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            src: "dst[x] = a[x]-c;"
+        },
+        Kernel {
+            name: "*c",
+            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            src: "dst[x] = a[x]*c;"
+        },
+        Kernel {
+            name: "/c",
+            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            src: "dst[x] = a[x]/c;"
         },
         Kernel {
             name: "philox2x64_10",
@@ -48,8 +68,8 @@ pub fn kernels() -> HashMap<&'static str,Kernel> {
                 }
                 dst[x*l]   = (double)(counter[0]>>11)/(1l << 53);
                 dst[x*l+1] = (double)(counter[1]>>11)/(1l << 53);
-                src[x*l]   += 1;
-                src[x*l+1] += 1;
+                src[x*l]   = counter[0];
+                src[x*l+1] = counter[1];
             "
         },
         Kernel {
@@ -79,10 +99,10 @@ pub fn kernels() -> HashMap<&'static str,Kernel> {
                 dst[x*l+1] = (double)(counter[1]>>11)/(1l << 53);
                 dst[x*l+2] = (double)(counter[2]>>11)/(1l << 53);
                 dst[x*l+3] = (double)(counter[3]>>11)/(1l << 53);
-                src[x*l]   += 1;
-                src[x*l+1] += 1;
-                src[x*l+2] += 1;
-                src[x*l+3] += 1;
+                src[x*l]   = counter[0];
+                src[x*l+1] = counter[1];
+                src[x*l+2] = counter[2];
+                src[x*l+3] = counter[3];
             "
         },
         Kernel {
@@ -113,9 +133,9 @@ pub fn kernels() -> HashMap<&'static str,Kernel> {
                 unsigned long r2 = (((unsigned long)counter[2])<<32)+counter[3];
                 dst[x*l]   = (double)(r1>>11)/(1l << 53);
                 dst[x*l+1] = (double)(r2>>11)/(1l << 53);
-                src[x*l]   += 1;
-                src[x*l+1] += 1;
-            "
+                src[x*l]   = r1;
+                src[x*l+1] = r2;
+            "//TODO make this kernel take 4 uint as src and not 2 double (or ulong)
         },
     ].into_iter().map(|k| (k.name,k)).collect()
 }

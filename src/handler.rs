@@ -8,12 +8,12 @@ use crate::dim::Dim;
 use crate::descriptors::KernelDescriptor;
 use crate::algorithms::Callback;
 
-
+#[allow(dead_code)]
 pub struct Handler {
     pq: ProQue,
-    kernels: HashMap<&'static str,Kernel>,
-    algorithms: HashMap<&'static str,Callback>,
-    buffers: HashMap<&'static str,Buffer<f64>>,
+    kernels: HashMap<String,Kernel>,
+    algorithms: HashMap<String,Callback>,
+    buffers: HashMap<String,Buffer<f64>>,
 }
 
 impl Handler {

@@ -23,14 +23,14 @@ mod test {
 
     #[test]
     fn simple_main() -> crate::Result<()> {
-        let src = "u[x] = p+x_size*1000+x*100;";
+        let src = "u[x] = p+x_size*1000+x*100;".to_string();
 
         let num = 8;
         let mut gpu = Handler::builder()?
             .add_buffer("u", Len(0.0, num))
             .create_kernel(Kernel {
                 name: "main",
-                src,
+                src: &src,
                 args: vec![Buffer("u"),Param("p",0.0)]
             })
             .build()?;

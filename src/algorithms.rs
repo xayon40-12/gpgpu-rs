@@ -7,13 +7,13 @@ use std::rc::Rc;
 pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelDescriptor>) -> crate::Result<()>)>;
 
 #[derive(Clone)]
-pub struct Algorithm {
-    pub name: &'static str,
+pub struct Algorithm<'a> {
+    pub name: &'a str,
     pub callback: Callback,
-    pub kernels: Vec<Kernel>
+    pub kernels: Vec<Kernel<'a>>
 }
 
-pub fn algorithms() -> HashMap<&'static str,Algorithm> {
+pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
     vec![
         Algorithm {
             name: "sum",

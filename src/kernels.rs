@@ -2,51 +2,51 @@ use crate::descriptors::KernelDescriptor::{self,*};
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Kernel {
-    pub name: &'static str,
+pub struct Kernel<'a> {
+    pub name: &'a str,
     pub args: Vec<KernelDescriptor>,
-    pub src: &'static str
+    pub src: &'a str
 }
 
-pub fn kernels() -> HashMap<&'static str,Kernel> {
+pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
     vec![
         Kernel {
-            name: "+",
+            name: "plus",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]+b[x];"
         },
         Kernel {
-            name: "-",
+            name: "minus",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]-b[x];"
         },
         Kernel {
-            name: "*",
+            name: "times",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]*b[x];"
         },
         Kernel {
-            name: "/",
+            name: "divide",
             args: vec![Buffer("a"),Buffer("b"),Buffer("dst")],
             src: "dst[x] = a[x]/b[x];"
         },
         Kernel {
-            name: "+c",
+            name: "cplus",
             args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
             src: "dst[x] = a[x]+c;"
         },
         Kernel {
-            name: "-c",
+            name: "cminus",
             args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
             src: "dst[x] = a[x]-c;"
         },
         Kernel {
-            name: "*c",
+            name: "ctimes",
             args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
             src: "dst[x] = a[x]*c;"
         },
         Kernel {
-            name: "/c",
+            name: "cdivide",
             args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
             src: "dst[x] = a[x]/c;"
         },

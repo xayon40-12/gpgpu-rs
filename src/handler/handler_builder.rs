@@ -4,16 +4,16 @@ use crate::descriptors::*;
 use crate::kernels::{Kernel,self};
 use crate::algorithms::{self,Algorithm};
 
-pub struct HandlerBuilder {
-    available_kernels: HashMap<&'static str,Kernel>,
-    available_algorithms: HashMap<&'static str,Algorithm>,
-    kernels: Vec<(Kernel,Option<String>)>,
-    algorithms: Vec<(Algorithm,Option<String>)>,
+pub struct HandlerBuilder<'a> {
+    available_kernels: HashMap<&'static str,Kernel<'a>>,
+    available_algorithms: HashMap<&'static str,Algorithm<'a>>,
+    kernels: Vec<(Kernel<'a>,Option<String>)>,
+    algorithms: Vec<(Algorithm<'a>,Option<String>)>,
     buffers: Vec<(String,BufferDescriptor)>
 }
 
-impl HandlerBuilder {
-    pub fn new() -> ocl::Result<HandlerBuilder> {
+impl<'a> HandlerBuilder<'a> {
+    pub fn new() -> ocl::Result<HandlerBuilder<'a>> {
         Ok(HandlerBuilder {
             available_kernels: kernels::kernels(),
             available_algorithms: algorithms::algorithms(),
@@ -36,7 +36,7 @@ impl HandlerBuilder {
         hand
     }
 
-    pub fn create_kernel(mut self, kernel: Kernel) -> Self {
+    pub fn create_kernel(mut self, kernel: Kernel<'a>) -> Self {
         self.kernels.push((kernel,None));
         self
     }
@@ -51,7 +51,7 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn create_algorithm(mut self, algorithm: Algorithm) -> Self {
+    pub fn create_algorithm(mut self, algorithm: Algorithm<'a>) -> Self {
         self.algorithms.push((algorithm,None));
         self
     }

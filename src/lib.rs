@@ -30,14 +30,14 @@ mod test {
         let mut gpu = Handler::builder()?
             .add_buffer("u", Len(0.0, num))
             .create_kernel(Kernel {
-                name: "main",
+                name: "_main",
                 src: &src,
                 args: vec![Buffer("u"),Param(&param_name,0.0)]
             })
             .build()?;
 
         for i in 0..10 {
-            gpu.run("main",Dim::D1(num),vec![Param("p", i as f64)])?;
+            gpu.run("_main",Dim::D1(num),vec![Param("p", i as f64)])?;
             assert_eq!(gpu.get("u")?, (0..num).map(|j| i as f64 + num as f64*1000.0 + j as f64*100.0).collect::<Vec<_>>());
         }
 

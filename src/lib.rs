@@ -26,12 +26,13 @@ mod test {
         let src = "u[x] = p+x_size*1000+x*100;".to_string();
 
         let num = 8;
+        let param_name = String::from("p");
         let mut gpu = Handler::builder()?
             .add_buffer("u", Len(0.0, num))
             .create_kernel(Kernel {
                 name: "main",
                 src: &src,
-                args: vec![Buffer("u"),Param("p",0.0)]
+                args: vec![Buffer("u"),Param(&param_name,0.0)]
             })
             .build()?;
 

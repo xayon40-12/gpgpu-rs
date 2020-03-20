@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub struct Kernel<'a> {
     pub name: &'a str,
-    pub args: Vec<KernelDescriptor>,
+    pub args: Vec<KernelDescriptor<'a>>,
     pub src: &'a str
 }
 

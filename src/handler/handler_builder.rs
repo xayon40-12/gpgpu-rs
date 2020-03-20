@@ -1,5 +1,5 @@
 use ocl::ProQue;
-use std::collections::{HashMap,HashSet};
+use std::collections::{HashMap,HashSet,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{Kernel,self};
 use crate::algorithms::{self,Algorithm};
@@ -7,7 +7,7 @@ use crate::algorithms::{self,Algorithm};
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
-    kernels: Vec<(Kernel<'a>,Option<String>)>,
+    kernels: Vec<(Kernel<'a>,BTreeMap<String,u32>,Option<String>)>,
     algorithms: Vec<(Algorithm<'a>,Option<String>)>,
     buffers: Vec<(String,BufferDescriptor)>
 }
@@ -37,17 +37,17 @@ impl<'a> HandlerBuilder<'a> {
     }
 
     pub fn create_kernel(mut self, kernel: Kernel<'a>) -> Self {
-        self.kernels.push((kernel,None));
+        self.kernels.push((kernel,BTreeMap::new(),None));
         self
     }
 
     pub fn load_kernel(mut self, name: &str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name.to_string())));
+        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),Some(name.to_string())));
         self
     }
 
     pub fn load_kernel_named(mut self, name: &str, as_name: &str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name.to_string())));
+        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),Some(as_name.to_string())));
         self
     }
 
@@ -71,7 +71,7 @@ impl<'a> HandlerBuilder<'a> {
         for (Algorithm { name,kernels,callback },loadedname) in self.algorithms {
             for k in kernels {
                 let name = k.name;
-                self.kernels.push((k,Some(name.to_string())));
+                self.kernels.push((k,BTreeMap::new(),Some(name.to_string())));
             }
             let name = loadedname.unwrap_or(name.to_string());
             if algorithms.insert(name.clone(),callback).is_some() { panic!("Cannot add two algorithms with the same name \"{}\"",name) }
@@ -79,7 +79,8 @@ impl<'a> HandlerBuilder<'a> {
 
         let mut prog = String::new();
         let mut kern_names = HashSet::new();
-        for (Kernel {name,src,args},_) in &self.kernels {
+        prog += "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
+        for (Kernel {name,src,args},_,_) in &self.kernels {
             if !kern_names.insert(name) { panic!("Cannot add two kernels with the same name \"{}\"",name) }
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
@@ -123,29 +124,35 @@ impl<'a> HandlerBuilder<'a> {
         }
 
         let mut kernels = HashMap::new();
-        for (Kernel {name,src: _,args},loadedname) in self.kernels {
+        for (Kernel {name,src: _,args},mut map,loadedname) in self.kernels {
             let mut kernel = pq.kernel_builder(name);
+            let mut id = 0;
             for a in args {
                 match a {
-                    KernelDescriptor::Param(n,v) =>
-                        kernel.arg_named(n,v),
+                    KernelDescriptor::Param(n,v) => {
+                        map.insert(n.to_string(),id); id += 1;
+                        kernel.arg(v)
+                    },
                     KernelDescriptor::Buffer(n) => {
+                        map.insert(n.to_string(),id); id += 1;
                         if loadedname.is_some() {
-                            kernel.arg_named(n,None::<&ocl::Buffer<f64>>)
+                            kernel.arg(None::<&ocl::Buffer<f64>>)
                         } else {
-                            kernel.arg_named(n,&buffers[n])
+                            kernel.arg(&buffers[n])
                         }
                     },
-                    KernelDescriptor::BufArg(n,m) =>
+                    KernelDescriptor::BufArg(n,_) => {
+                        map.insert(n.to_string(),id); id += 1;
                         if loadedname.is_some() {
-                            kernel.arg_named(n,None::<&ocl::Buffer<f64>>)
+                            kernel.arg(None::<&ocl::Buffer<f64>>)
                         } else {
-                            kernel.arg_named(m,&buffers[n])
+                            kernel.arg(&buffers[n])
                         }
+                    }
                 };
             }
             let name = loadedname.unwrap_or(name.to_string());
-            if kernels.insert(name.clone(),kernel.build()?).is_some() { panic!("Cannot add two kernels with the same name \"{}\"",name) }
+            if kernels.insert(name.clone(),(kernel.build()?,map)).is_some() { panic!("Cannot add two kernels with the same name \"{}\"",name) }
         }
 
         Ok(super::Handler {

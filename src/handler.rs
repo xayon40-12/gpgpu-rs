@@ -1,5 +1,5 @@
 use ocl::{ProQue,Buffer,Kernel};
-use std::collections::HashMap; 
+use std::collections::{HashMap,BTreeMap};
 
 pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
@@ -11,7 +11,7 @@ use crate::algorithms::Callback;
 #[allow(dead_code)]
 pub struct Handler {
     pq: ProQue,
-    kernels: HashMap<String,Kernel>,
+    kernels: HashMap<String,(Kernel,BTreeMap<String,u32>)>,
     algorithms: HashMap<String,Callback>,
     buffers: HashMap<String,Buffer<f64>>,
 }
@@ -42,16 +42,16 @@ impl Handler {
         for d in desc {
             match d {
                 KernelDescriptor::Param(n,v) =>
-                    kernel.set_arg(n,v),
+                    kernel.0.set_arg(kernel.1[n],v),
                 KernelDescriptor::Buffer(n) =>
-                    kernel.set_arg(n,self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n))),
+                    kernel.0.set_arg(kernel.1[n],self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n))),
                 KernelDescriptor::BufArg(n,m) =>
-                    kernel.set_arg(m,self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n)))
+                    kernel.0.set_arg(kernel.1[m],self.buffers.get(n).expect(&format!("Buffer \"{}\" not found",n)))
             }?;
         }
 
         unsafe {
-            kernel.cmd().global_work_size(dim).enq()
+            kernel.0.cmd().global_work_size(dim).enq()
         }
     }
     

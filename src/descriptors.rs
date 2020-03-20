@@ -1,8 +1,8 @@
 #[derive(Clone)]
-pub enum KernelDescriptor {
-    Param(&'static str,f64),
-    Buffer(&'static str),
-    BufArg(&'static str,&'static str) // BufArg(mem buf, kernel buf)
+pub enum KernelDescriptor<'a> {
+    Param(&'a str,f64),
+    Buffer(&'a str),
+    BufArg(&'a str,&'a str) // BufArg(mem buf, kernel buf)
 }
 
 pub enum BufferDescriptor {

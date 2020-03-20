@@ -1,4 +1,5 @@
 use crate::descriptors::KernelDescriptor::{self,*};
+use crate::descriptors::Type::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -32,22 +33,22 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
         },
         Kernel {
             name: "cplus",
-            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            args: vec![Buffer("a"),Param("c",F64(0.0)),Buffer("dst")],
             src: "dst[x] = a[x]+c;"
         },
         Kernel {
             name: "cminus",
-            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            args: vec![Buffer("a"),Param("c",F64(0.0)),Buffer("dst")],
             src: "dst[x] = a[x]-c;"
         },
         Kernel {
             name: "ctimes",
-            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            args: vec![Buffer("a"),Param("c",F64(0.0)),Buffer("dst")],
             src: "dst[x] = a[x]*c;"
         },
         Kernel {
             name: "cdivide",
-            args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
+            args: vec![Buffer("a"),Param("c",F64(0.0)),Buffer("dst")],
             src: "dst[x] = a[x]/c;"
         },
         Kernel { //TODO: compare mul_hi and long long on GPU

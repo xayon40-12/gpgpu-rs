@@ -84,10 +84,10 @@ impl<'a> HandlerBuilder<'a> {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
-                    KernelDescriptor::Param(n,_) => 
-                        prog += &format!("double {},", n),
+                    KernelDescriptor::Param(n,t) => 
+                        prog += &format!("{} {},", t.type_name_ocl(), n),
                     KernelDescriptor::Buffer(n) | KernelDescriptor::BufArg(_,n) => 
-                        prog += &format!("__global double *{},", n)
+                        prog += &format!("__global double *{},", n)//TODO use buffer typename
                 };
             }
             prog.pop(); // remove last unnescessary ","
@@ -106,20 +106,17 @@ impl<'a> HandlerBuilder<'a> {
 
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
-            match desc {
-                BufferDescriptor::Len(val,len) =>
-                    if buffers.insert(name.clone(), pq.buffer_builder()
-                                           .len(len)
-                                           .fill_val(val)
-                                           .build()?).is_some() { 
-                        panic!("Cannot add two buffers with the same name \"{}\"",name) },
-                BufferDescriptor::Data(data) =>
-                    if buffers.insert(name.clone(), pq.buffer_builder()
+            let bb = match &desc {
+                BufferDescriptor::Len(val,len) => pq.buffer_builder()
+                                           .len(*len)
+                                           .fill_val(*val),
+                BufferDescriptor::Data(data) => pq.buffer_builder()
                                            .len(data.len())
-                                           .copy_host_slice(&data)
-                                           .build()?).is_some() {
-                        panic!("Cannot add two buffers with the same name \"{}\"",name) }
+                                           .copy_host_slice(data)
             };
+            if buffers.insert(name.clone(), BufType::F64(bb.build()?)).is_some() { 
+                        panic!("Cannot add two buffers with the same name \"{}\"",name)
+            }
         }
 
         let mut kernels = HashMap::new();
@@ -130,24 +127,15 @@ impl<'a> HandlerBuilder<'a> {
                 match a {
                     KernelDescriptor::Param(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
-                        kernel.arg(v)
+                        iner_each!(v,Type,v,kernel.arg(v))
                     },
-                    KernelDescriptor::Buffer(n) => {
+                    KernelDescriptor::Buffer(n) | KernelDescriptor::BufArg(n,_) => {
                         map.insert(n.to_string(),id); id += 1;
                         if loadedname.is_some() {
                             kernel.arg(None::<&ocl::Buffer<f64>>)
                         } else {
-                            kernel.arg(&buffers[n])
-                        }
+                            iner_each!(&buffers[n],BufType,buf,kernel.arg(buf))                                             }
                     },
-                    KernelDescriptor::BufArg(n,_) => {
-                        map.insert(n.to_string(),id); id += 1;
-                        if loadedname.is_some() {
-                            kernel.arg(None::<&ocl::Buffer<f64>>)
-                        } else {
-                            kernel.arg(&buffers[n])
-                        }
-                    }
                 };
             }
             let name = loadedname.unwrap_or(name.to_string());

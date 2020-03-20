@@ -1,7 +1,8 @@
+#[macro_use] pub mod descriptors;
+
 pub mod handler;
 pub use handler::Handler;
 
-pub mod descriptors;
 pub use descriptors::{KernelDescriptor,BufferDescriptor};
 
 pub mod dim;
@@ -20,6 +21,7 @@ mod test {
     use crate::descriptors::{BufferDescriptor::*,KernelDescriptor::*};
     use crate::kernels::Kernel;
     use crate::Dim;
+    use crate::descriptors::Type::*;
 
     #[test]
     fn simple_main() -> crate::Result<()> {
@@ -32,13 +34,13 @@ mod test {
             .create_kernel(Kernel {
                 name: "_main",
                 src: &src,
-                args: vec![Buffer("u"),Param(&param_name,0.0)]
+                args: vec![Buffer("u"),Param(&param_name,F32(0.0))]
             })
             .build()?;
 
         for i in 0..10 {
-            gpu.run("_main",Dim::D1(num),vec![Param("p", i as f64)])?;
-            assert_eq!(gpu.get("u")?, (0..num).map(|j| i as f64 + num as f64*1000.0 + j as f64*100.0).collect::<Vec<_>>());
+            gpu.run("_main",Dim::D1(num),vec![Param("p",F32( i as f32))])?;
+            assert_eq!(gpu.get::<f64>("u")?, (0..num).map(|j| i as f64 + num as f64*1000.0 + j as f64*100.0).collect::<Vec<_>>());
         }
 
         Ok(())
@@ -55,7 +57,7 @@ mod test {
             .build()?;
 
         gpu.run("plus",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
-        assert_eq!(gpu.get("dst")?, (0..num).map(|i| i as f64 + 2.0).collect::<Vec<_>>());
+        assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 + 2.0).collect::<Vec<_>>());
 
         Ok(())
     }
@@ -71,7 +73,7 @@ mod test {
             .build()?;
 
         gpu.run("times",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
-        assert_eq!(gpu.get("dst")?, (0..num).map(|i| i as f64 * 2.0).collect::<Vec<_>>());
+        assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * 2.0).collect::<Vec<_>>());
 
         Ok(())
     }
@@ -86,7 +88,7 @@ mod test {
             .build()?;
 
         gpu.run_algorithm("sum",Dim::D1(num),vec![Buffer("src"),Buffer("dst")])?;
-        assert_eq!(gpu.get("dst")?[0], (0..num).map(|i| i as f64).fold(0.0,|i,a| i+a));
+        assert_eq!(gpu.get::<f64>("dst")?[0], (0..num).map(|i| i as f64).fold(0.0,|i,a| i+a));
 
         Ok(())
     }

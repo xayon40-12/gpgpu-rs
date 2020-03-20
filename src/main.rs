@@ -18,7 +18,7 @@ fn main() -> gpgpu::Result<()> {
     for _ in 0..10 {
         gpu.run("noise",Dim::D1(len),vec![Buffer("src"),BufArg("num","dst")])?;
         gpu.run_algorithm("sum",Dim::D1(len),vec![BufArg("num","src"),BufArg("sum","dst")])?;
-        println!("{}", (gpu.get_first("sum")?/len as f64-0.5)*2.0);
+        println!("{}", (gpu.get_first::<f64>("sum")?/len as f64-0.5)*2.0);
     }
     println!("{}", SystemTime::now().duration_since(start).unwrap().as_millis());
 

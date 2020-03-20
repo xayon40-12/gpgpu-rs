@@ -79,7 +79,6 @@ impl<'a> HandlerBuilder<'a> {
 
         let mut prog = String::new();
         let mut kern_names = HashSet::new();
-        prog += "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n";
         for (Kernel {name,src,args},_,_) in &self.kernels {
             if !kern_names.insert(name) { panic!("Cannot add two kernels with the same name \"{}\"",name) }
             prog += &format!("\n__kernel void {}(\n",name);

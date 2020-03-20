@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() -> gpgpu::Result<()> {
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-    let len = 1<<26;
+    let len = 1<<24;
     let mut gpu = Handler::builder()?
         .add_buffer("src", Len(time as f64,len*4))
         .add_buffer("num", Len(0.0,len*4))

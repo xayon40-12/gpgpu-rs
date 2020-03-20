@@ -50,18 +50,17 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             args: vec![Buffer("a"),Param("c",0.0),Buffer("dst")],
             src: "dst[x] = a[x]/c;"
         },
-        Kernel {
+        Kernel { //TODO: compare mul_hi and long long on GPU
             name: "philox2x64_10",
             args: vec![Buffer("src"),Buffer("dst")],
             src: "
                 unsigned long key = x;
                 const unsigned int l = 2;
-                const unsigned long long M = 0xD2B74407B1CE6E93;
+                const unsigned long M = 0xD2B74407B1CE6E93;
                 unsigned long counter[2] = {src[x*l],src[x*l+1]};
                 for(int i = 0;i<10;i++){
-                    unsigned long long prod = M * counter[0];
-                    unsigned long hi = (prod >> 64);
-                    unsigned long lo = prod;
+                    unsigned long hi = mul_hi(M,counter[0]);
+                    unsigned long lo = M * counter[0];
                     counter[0] = hi^key^counter[1];
                     counter[1] = lo;
                     key += 0x9E3779B97F4A7C15;
@@ -71,8 +70,26 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
                 src[x*l]   = counter[0];
                 src[x*l+1] = counter[1];
             "
+            //"
+            //    unsigned long key = x;
+            //    const unsigned int l = 2;
+            //    const unsigned long long M = 0xD2B74407B1CE6E93;
+            //    unsigned long counter[2] = {src[x*l],src[x*l+1]};
+            //    for(int i = 0;i<10;i++){
+            //        unsigned long long prod = M * counter[0];
+            //        unsigned long hi = (prod >> 64);
+            //        unsigned long lo = prod;
+            //        counter[0] = hi^key^counter[1];
+            //        counter[1] = lo;
+            //        key += 0x9E3779B97F4A7C15;
+            //    }
+            //    dst[x*l]   = (double)(counter[0]>>11)/(1l << 53);
+            //    dst[x*l+1] = (double)(counter[1]>>11)/(1l << 53);
+            //    src[x*l]   = counter[0];
+            //    src[x*l+1] = counter[1];
+            //"
         },
-        Kernel {
+        Kernel { //WARNING: long long is needed and may not be supported
             name: "philox4x64_10",
             args: vec![Buffer("src"),Buffer("dst")],
             src: "

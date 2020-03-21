@@ -106,16 +106,24 @@ impl<'a> HandlerBuilder<'a> {
 
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
-            let bb = match &desc {
-                BufferDescriptor::Len(val,len) => pq.buffer_builder()
-                                           .len(*len)
-                                           .fill_val(*val),
-                BufferDescriptor::Data(data) => pq.buffer_builder()
-                                           .len(data.len())
-                                           .copy_host_slice(data)
+            let existing = match &desc {
+                BufferDescriptor::Len(val,len) => buffers.insert(name.clone(),
+                    //iner_each_gen!(val,Type BufType,val,
+                        BufType::F64(
+                        pq.buffer_builder()
+                        .len(*len)
+                        .fill_val(*val)
+                        .build()?)),
+                BufferDescriptor::Data(data) => buffers.insert(name.clone(),
+                    //iner_each_gen!(data,Type BufType,data,
+                        BufType::F64(
+                        pq.buffer_builder()
+                       .len(data.len())
+                       .copy_host_slice(data)
+                       .build()?))
             };
-            if buffers.insert(name.clone(), BufType::F64(bb.build()?)).is_some() { 
-                        panic!("Cannot add two buffers with the same name \"{}\"",name)
+            if existing.is_some() {
+                panic!("Cannot add two buffers with the same name \"{}\"",name)
             }
         }
 
@@ -134,7 +142,8 @@ impl<'a> HandlerBuilder<'a> {
                         if loadedname.is_some() {
                             kernel.arg(None::<&ocl::Buffer<f64>>)
                         } else {
-                            iner_each!(&buffers[n],BufType,buf,kernel.arg(buf))                                             }
+                            iner_each!(&buffers[n],BufType,buf,kernel.arg(buf))
+                        }
                     },
                 };
             }

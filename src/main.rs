@@ -5,12 +5,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() -> gpgpu::Result<()> {
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-    let len = 1<<24;
+    let len = 1<<14;
     let mut gpu = Handler::builder()?
         .add_buffer("src", Len(time as f64,len*4))
         .add_buffer("num", Len(0.0,len*4))
         .add_buffer("sum", Len(0.0,len*4))
-        .load_kernel_named("philox2x64_10","noise")
+        .load_kernel_named("philox4x32_10","noise")
         .load_algorithm("sum")
         .build()?;
 

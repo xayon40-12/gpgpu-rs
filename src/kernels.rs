@@ -54,7 +54,8 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
         Kernel { //TODO: compare mul_hi and long long on GPU
             name: "philox2x64_10",
             args: vec![Buffer("src"),Buffer("dst")],
-            src: "
+            src: 
+            "
                 unsigned long key = x;
                 const unsigned int l = 2;
                 const unsigned long M = 0xD2B74407B1CE6E93;

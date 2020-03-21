@@ -45,12 +45,12 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 if spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run("algo_sum", D1(l), vec![Param("spacing",F64(spacing as f64)),bufdst])?;
+                    h.run("algo_sum", D1(l), vec![Param("s",U64(spacing as u64)),bufdst])?;
                 }
                 while spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run("algo_sum", D1(l), vec![Param("spacing",F64(spacing as f64))])?;
+                    h.run("algo_sum", D1(l), vec![Param("s",U64(spacing as u64))])?;
                 }
                 Ok(())
             }),
@@ -62,8 +62,8 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 },
                 Kernel {
                     name: "algo_sum",
-                    args: vec![Param("spacing",F64(0f64)),Buffer("dst")],
-                    src: "long s=spacing; dst[x*s] = dst[x*s]+dst[x*s+s/2];"
+                    args: vec![Param("s",U64(0)),Buffer("dst")],
+                    src: "dst[x*s] = dst[x*s]+dst[x*s+s/2];"
                 },
             ]
         },

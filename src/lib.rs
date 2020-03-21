@@ -3,7 +3,7 @@
 pub mod handler;
 pub use handler::Handler;
 
-pub use descriptors::{KernelDescriptor,BufferDescriptor};
+pub use descriptors::{KernelArg,BufferConstructor};
 
 pub mod dim;
 pub use dim::Dim;
@@ -18,10 +18,9 @@ pub type Result<T> = ocl::Result<T>;
 #[cfg(test)]
 mod test {
     use crate::Handler;
-    use crate::descriptors::{BufferDescriptor::*,KernelDescriptor::*};
+    use crate::descriptors::{BufferConstructor::*,KernelArg::*,VecType,Type::*};
     use crate::kernels::Kernel;
     use crate::Dim;
-    use crate::descriptors::Type::*;
 
     #[test]
     fn simple_main() -> crate::Result<()> {
@@ -30,7 +29,7 @@ mod test {
         let num = 8;
         let param_name = String::from("p");
         let mut gpu = Handler::builder()?
-            .add_buffer("u", Len(0.0, num))
+            .add_buffer("u", Len(F64(0.0), num))
             .create_kernel(Kernel {
                 name: "_main",
                 src: &src,
@@ -50,9 +49,9 @@ mod test {
     fn plus() -> crate::Result<()> {
         let num = 8;
         let mut gpu = Handler::builder()?
-            .add_buffer("a", Data((0..num).map(|i| i as f64).collect()))
-            .add_buffer("b", Len(2.0, num))
-            .add_buffer("dst", Len(0.0, num))
+            .add_buffer("a", Data((0..num).map(|i| i as f64).collect::<Vec<_>>().into()))
+            .add_buffer("b", Len(F64(2.0), num))
+            .add_buffer("dst", Len(F64(0.0), num))
             .load_kernel("plus")
             .build()?;
 
@@ -66,9 +65,9 @@ mod test {
     fn times() -> crate::Result<()> {
         let num = 8;
         let mut gpu = Handler::builder()?
-            .add_buffer("a", Data((0..num).map(|i| i as f64).collect()))
-            .add_buffer("b", Len(2.0, num))
-            .add_buffer("dst", Len(0.0, num))
+            .add_buffer("a", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+            .add_buffer("b", Len(F64(2.0), num))
+            .add_buffer("dst", Len(F64(0.0), num))
             .load_kernel("times")
             .build()?;
 
@@ -82,8 +81,8 @@ mod test {
     fn sum() -> crate::Result<()> {
         let num = 8;
         let mut gpu = Handler::builder()?
-            .add_buffer("src", Data((0..num).map(|i| i as f64).collect()))
-            .add_buffer("dst", Len(0.0, num))
+            .add_buffer("src", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+            .add_buffer("dst", Len(F64(0.0), num))
             .load_algorithm("sum")
             .build()?;
 

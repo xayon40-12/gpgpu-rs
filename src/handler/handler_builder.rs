@@ -9,7 +9,7 @@ pub struct HandlerBuilder<'a> {
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
     kernels: Vec<(Kernel<'a>,BTreeMap<String,u32>,Option<String>)>,
     algorithms: Vec<(Algorithm<'a>,Option<String>)>,
-    buffers: Vec<(String,BufferDescriptor)>
+    buffers: Vec<(String,BufferConstructor)>
 }
 
 impl<'a> HandlerBuilder<'a> {
@@ -23,12 +23,12 @@ impl<'a> HandlerBuilder<'a> {
         })
     }
 
-    pub fn add_buffer(mut self, name: &str, desc: BufferDescriptor) -> Self {
+    pub fn add_buffer(mut self, name: &str, desc: BufferConstructor) -> Self {
         self.buffers.push((name.to_string(),desc));
         self
     }
 
-    pub fn add_buffers(self, buffers: Vec<(&str,BufferDescriptor)>) -> Self {
+    pub fn add_buffers(self, buffers: Vec<(&str,BufferConstructor)>) -> Self {
         let mut hand = self;
         for (name,desc) in buffers {
             hand = hand.add_buffer(name,desc);
@@ -84,9 +84,9 @@ impl<'a> HandlerBuilder<'a> {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
-                    KernelDescriptor::Param(n,t) => 
+                    KernelArg::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    KernelDescriptor::Buffer(n) | KernelDescriptor::BufArg(_,n) => 
+                    KernelArg::Buffer(n) | KernelArg::BufArg(_,n) => 
                         prog += &format!("__global double *{},", n)//TODO use buffer typename
                 };
             }
@@ -107,16 +107,14 @@ impl<'a> HandlerBuilder<'a> {
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
             let existing = match &desc {
-                BufferDescriptor::Len(val,len) => buffers.insert(name.clone(),
-                    //iner_each_gen!(val,Type BufType,val,
-                        BufType::F64(
+                BufferConstructor::Len(val,len) => buffers.insert(name.clone(),
+                    iner_each_gen!(val,Type BufType,val,
                         pq.buffer_builder()
                         .len(*len)
                         .fill_val(*val)
                         .build()?)),
-                BufferDescriptor::Data(data) => buffers.insert(name.clone(),
-                    //iner_each_gen!(data,Type BufType,data,
-                        BufType::F64(
+                BufferConstructor::Data(data) => buffers.insert(name.clone(),
+                    iner_each_gen!(data,VecType BufType,data,
                         pq.buffer_builder()
                        .len(data.len())
                        .copy_host_slice(data)
@@ -133,11 +131,11 @@ impl<'a> HandlerBuilder<'a> {
             let mut id = 0;
             for a in args {
                 match a {
-                    KernelDescriptor::Param(n,v) => {
+                    KernelArg::Param(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
                         iner_each!(v,Type,v,kernel.arg(v))
                     },
-                    KernelDescriptor::Buffer(n) | KernelDescriptor::BufArg(n,_) => {
+                    KernelArg::Buffer(n) | KernelArg::BufArg(n,_) => {
                         map.insert(n.to_string(),id); id += 1;
                         if loadedname.is_some() {
                             kernel.arg(None::<&ocl::Buffer<f64>>)

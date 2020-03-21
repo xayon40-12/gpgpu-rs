@@ -1,11 +1,11 @@
-use crate::descriptors::KernelDescriptor::{self,*};
+use crate::descriptors::KernelArg::{self,*};
 use crate::descriptors::Type::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Kernel<'a> {
     pub name: &'a str,
-    pub args: Vec<KernelDescriptor<'a>>,
+    pub args: Vec<KernelArg<'a>>,
     pub src: &'a str
 }
 

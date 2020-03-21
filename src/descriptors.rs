@@ -1,13 +1,18 @@
 #[derive(Clone)]
-pub enum KernelDescriptor<'a> {
+pub enum KernelArg<'a> {
     Param(&'a str,Type),
     Buffer(&'a str),
-    BufArg(&'a str,&'a str) // BufArg(mem buf, kernel buf)
+    BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
 }
 
-pub enum BufferDescriptor {
-    Len(f64,usize), // Len(repeated value, len)
-    Data(Vec<f64>)
+pub enum BufferConstructor {
+    Len(Type,usize), // Len(repeated value, len)
+    Data(VecType),
+}
+
+pub enum KernelConstructor<'a> {
+    Param(&'a str, EmptyType),
+    Buffer(&'a str, EmptyType),
 }
 
 use std::any::{Any,type_name};
@@ -33,8 +38,10 @@ macro_rules! impl_types {
         }
     };
 }
+
+
 macro_rules! gen_types {
-    ($namebuftype:ident $nametype:ident $namevectype:ident, $($case:ident|$case_t:ident|$case_ocl:literal) +) => {
+    ($namebuftype:ident $nametype:ident $namevectype:ident $nameemptytype:ident, $($case:ident|$case_t:ident|$case_ocl:literal) +) => {
         macro_rules! iner_each {
             ($match:expr, $enum:ident, $var:pat, $todo:expr) => {
                 match $match {
@@ -60,11 +67,27 @@ macro_rules! gen_types {
         pub enum $nametype {
             $($case($case_t),)+
         }
+        $(impl From<$case_t> for $nametype {
+            fn from(t: $case_t) -> $nametype {
+                $nametype::$case(t)
+            }
+        })+
 
         #[derive(Debug)]
         pub enum $namevectype {
             $($case(Vec<$case_t>),)+
         }
+        $(impl From<Vec<$case_t>> for $namevectype {
+            fn from(t: Vec<$case_t>) -> $namevectype {
+                $namevectype::$case(t)
+            }
+        })+
+
+        #[derive(Debug)]
+        pub enum $nameemptytype {
+            $($case,)+
+        }
+
 
 
         impl_types!($namebuftype, $($case|$case_t|$case_ocl) +);
@@ -74,7 +97,7 @@ macro_rules! gen_types {
     };
 }
 
-gen_types!(BufType Type VecType,
+gen_types!(BufType Type VecType EmptyType,
     F64|f64|"double"
     F32|f32|"float"
     U64|u64|"unsigned long"

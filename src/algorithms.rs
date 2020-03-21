@@ -1,11 +1,11 @@
 use crate::{Handler,kernels::Kernel};
 use crate::Dim::{self,*};
-use crate::descriptors::KernelDescriptor::{self,*};
+use crate::descriptors::KernelArg::{self,*};
 use crate::descriptors::Type::*;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelDescriptor>) -> crate::Result<()>)>;
+pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelArg>) -> crate::Result<()>)>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> {
@@ -18,14 +18,14 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
     vec![
         Algorithm {
             name: "sum",
-            callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelDescriptor>| {
-                let mut bufsrc: Option<KernelDescriptor> = None;
-                let mut bufdst: Option<KernelDescriptor> = None;
+            callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelArg>| {
+                let mut bufsrc: Option<KernelArg> = None;
+                let mut bufdst: Option<KernelArg> = None;
                 for d in desc {
                     let n = match d {
-                        KernelDescriptor::Buffer(n) => n,
-                        KernelDescriptor::BufArg(_,m) => m,
-                        KernelDescriptor::Param(_,_) => panic!("No parameters should be given for algorithm \"sum\"")
+                        KernelArg::Buffer(n) => n,
+                        KernelArg::BufArg(_,m) => m,
+                        KernelArg::Param(_,_) => panic!("No parameters should be given for algorithm \"sum\"")
                     };
                     if n == "src" { bufsrc = Some(d); }
                     else if n == "dst" { bufdst = Some(d); }

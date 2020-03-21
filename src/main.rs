@@ -1,5 +1,5 @@
 use gpgpu::Handler;
-use gpgpu::descriptors::{BufferDescriptor::*,KernelDescriptor::*};
+use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*,Type::*};
 use gpgpu::Dim;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,9 +7,9 @@ fn main() -> gpgpu::Result<()> {
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
     let len = 1<<14;
     let mut gpu = Handler::builder()?
-        .add_buffer("src", Len(time as f64,len*4))
-        .add_buffer("num", Len(0.0,len*4))
-        .add_buffer("sum", Len(0.0,len*4))
+        .add_buffer("src", Len(F64(time as f64),len*4))
+        .add_buffer("num", Len(F64(0.0),len*4))
+        .add_buffer("sum", Len(F64(0.0),len*4))
         .load_kernel_named("philox4x32_10","noise")
         .load_algorithm("sum")
         .build()?;

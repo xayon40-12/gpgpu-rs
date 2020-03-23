@@ -4,6 +4,8 @@ use crate::descriptors::KernelArg::{self,*};
 use crate::descriptors::Type::*;
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::descriptors::KernelConstructor as KC;
+use crate::descriptors::EmptyType as EmT;
 
 pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelArg>) -> crate::Result<()>)>;
 
@@ -41,28 +43,28 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
                 if x<=1 { return Ok(()); }
                 let l = len(spacing);
-                h.run("algo_sum_src", D1(l), vec![bufsrc,bufdst.clone()])?;
+                h.run_arg("algo_sum_src", D1(l), vec![bufsrc,bufdst.clone()])?;
                 if spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run("algo_sum", D1(l), vec![Param("s",U64(spacing as u64)),bufdst])?;
+                    h.run_arg("algo_sum", D1(l), vec![Param("s",U64(spacing as u64)),bufdst])?;
                 }
                 while spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run("algo_sum", D1(l), vec![Param("s",U64(spacing as u64))])?;
+                    h.run_arg("algo_sum", D1(l), vec![Param("s",U64(spacing as u64))])?;
                 }
                 Ok(())
             }),
             kernels: vec![
                 Kernel {
                     name: "algo_sum_src",
-                    args: vec![Buffer("src"),Buffer("dst")],
+                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
                     src: "dst[x*2] = src[x*2]+src[x*2+1];"
                 },
                 Kernel {
                     name: "algo_sum",
-                    args: vec![Param("s",U64(0)),Buffer("dst")],
+                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64)],
                     src: "dst[x*s] = dst[x*s]+dst[x*s+s/2];"
                 },
             ]

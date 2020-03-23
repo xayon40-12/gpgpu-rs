@@ -42,7 +42,7 @@ impl<'a> HandlerBuilder<'a> {
     }
 
     pub fn load_kernel(mut self, name: &str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),Some(name.to_string())));
+        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),None));
         self
     }
 
@@ -57,7 +57,7 @@ impl<'a> HandlerBuilder<'a> {
     }
 
     pub fn load_algorithm(mut self, name: &str) -> Self {
-        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(name.to_string())));
+        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),None));
         self
     }
 
@@ -84,10 +84,10 @@ impl<'a> HandlerBuilder<'a> {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
-                    KernelArg::Param(n,t) => 
+                    KernelConstructor::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    KernelArg::Buffer(n) | KernelArg::BufArg(_,n) => 
-                        prog += &format!("__global double *{},", n)//TODO use buffer typename
+                    KernelConstructor::Buffer(n,t) => 
+                        prog += &format!("__global {} *{},", t.type_name_ocl(), n)//TODO use buffer typename
                 };
             }
             prog.pop(); // remove last unnescessary ","
@@ -131,17 +131,13 @@ impl<'a> HandlerBuilder<'a> {
             let mut id = 0;
             for a in args {
                 match a {
-                    KernelArg::Param(n,v) => {
+                    KernelConstructor::Param(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
-                        iner_each!(v,Type,v,kernel.arg(v))
+                        each_default!(param,v,kernel)
                     },
-                    KernelArg::Buffer(n) | KernelArg::BufArg(n,_) => {
+                    KernelConstructor::Buffer(n,b) => {
                         map.insert(n.to_string(),id); id += 1;
-                        if loadedname.is_some() {
-                            kernel.arg(None::<&ocl::Buffer<f64>>)
-                        } else {
-                            iner_each!(&buffers[n],BufType,buf,kernel.arg(buf))
-                        }
+                        each_default!(buffer,b,kernel)
                     },
                 };
             }

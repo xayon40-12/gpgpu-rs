@@ -55,8 +55,7 @@ impl Handler {
         Ok(val[0])
     }
 
-    pub fn run(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> ocl::Result<()> {
-        let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
+    fn _set_arg(&self, desc: Vec<KernelArg>, kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
         for d in desc {
             match d {
                 KernelArg::Param(n,v) =>
@@ -67,6 +66,28 @@ impl Handler {
                     self.set_kernel_arg_buf(kernel,n,m),
             }?;
         }
+        Ok(())
+    }
+
+    pub fn set_arg(&mut self, name: &str, desc: Vec<KernelArg>) -> crate::Result<()> {
+        let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
+        self._set_arg(desc,kernel)
+    }
+
+
+    pub fn run(&mut self, name: &str, dim: Dim) -> crate::Result<()> {
+        unsafe {
+            self.kernels.get(name)
+                .expect(&format!("Kernel \"{}\" not found",name))
+                .0.cmd()
+                .global_work_size(dim)
+                .enq()
+        }
+    }
+
+    pub fn run_arg(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> ocl::Result<()> {
+        let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
+        self._set_arg(desc,kernel)?;
 
         unsafe {
             kernel.0.cmd().global_work_size(dim).enq()

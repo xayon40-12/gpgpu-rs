@@ -5,11 +5,13 @@ pub enum KernelArg<'a> {
     BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
 }
 
+#[derive(Clone)]
 pub enum BufferConstructor {
     Len(Type,usize), // Len(repeated value, len)
     Data(VecType),
 }
 
+#[derive(Clone)]
 pub enum KernelConstructor<'a> {
     Param(&'a str, EmptyType),
     Buffer(&'a str, EmptyType),
@@ -73,7 +75,7 @@ macro_rules! gen_types {
             }
         })+
 
-        #[derive(Debug)]
+        #[derive(Debug,Clone)]
         pub enum $namevectype {
             $($case(Vec<$case_t>),)+
         }
@@ -83,16 +85,34 @@ macro_rules! gen_types {
             }
         })+
 
-        #[derive(Debug)]
-        pub enum $nameemptytype {
-            $($case,)+
-        }
-
-
-
         impl_types!($namebuftype, $($case|$case_t|$case_ocl) +);
         impl_types!($nametype, $($case|$case_t|$case_ocl) +);
         impl_types!($namevectype, $($case|$case_t|$case_ocl) +);
+
+
+        #[derive(Debug,Clone)]
+        pub enum $nameemptytype {
+            $($case,)+
+        }
+        impl $nameemptytype {
+            pub fn type_name_ocl(&self) -> &str {
+                match self {
+                    $($nameemptytype::$case => $case_ocl,)+
+                }
+            }
+        }
+        macro_rules! each_default {
+            (param, $match:ident, $kernel:ident) => {
+                match $match {
+                    $($nameemptytype::$case => $kernel.arg($case_t::default())),+
+                }
+            };
+            (buffer, $match:ident, $kernel:expr) => {
+                match $match {
+                    $($nameemptytype::$case => $kernel.arg(None::<&ocl::Buffer<$case_t>>)),+
+                }
+            };
+        }
 
     };
 }

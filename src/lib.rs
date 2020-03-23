@@ -18,9 +18,11 @@ pub type Result<T> = ocl::Result<T>;
 #[cfg(test)]
 mod test {
     use crate::Handler;
-    use crate::descriptors::{BufferConstructor::*,KernelArg::*,VecType,Type::*};
+    use crate::descriptors::{BufferConstructor::*,KernelArg::*,KernelConstructor,VecType,Type::*,EmptyType};
     use crate::kernels::Kernel;
     use crate::Dim;
+    use crate::descriptors::KernelConstructor as KC;
+    use crate::descriptors::EmptyType as EmT;
 
     #[test]
     fn simple_main() -> crate::Result<()> {
@@ -33,12 +35,13 @@ mod test {
             .create_kernel(Kernel {
                 name: "_main",
                 src: &src,
-                args: vec![Buffer("u"),Param(&param_name,F32(0.0))]
+                args: vec![KC::Buffer("u",EmT::F64),KC::Param(&param_name,EmT::F32)]
             })
             .build()?;
 
+        gpu.set_arg("_main",vec![Buffer("u")])?;
         for i in 0..10 {
-            gpu.run("_main",Dim::D1(num),vec![Param("p",F32( i as f32))])?;
+            gpu.run_arg("_main",Dim::D1(num),vec![Param("p",F32( i as f32))])?;
             assert_eq!(gpu.get::<f64>("u")?, (0..num).map(|j| i as f64 + num as f64*1000.0 + j as f64*100.0).collect::<Vec<_>>());
         }
 
@@ -55,7 +58,7 @@ mod test {
             .load_kernel("plus")
             .build()?;
 
-        gpu.run("plus",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
+        gpu.run_arg("plus",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
         assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 + 2.0).collect::<Vec<_>>());
 
         Ok(())
@@ -71,7 +74,7 @@ mod test {
             .load_kernel("times")
             .build()?;
 
-        gpu.run("times",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
+        gpu.run_arg("times",Dim::D1(num),vec![Buffer("a"),Buffer("b"),Buffer("dst")])?;
         assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * 2.0).collect::<Vec<_>>());
 
         Ok(())

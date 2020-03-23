@@ -4,26 +4,26 @@ A simple GPU computing library based on OpenCL.
 Not ready to be used.  
 
 # Features  
--[ ] comments and documentations  
+- [ ] comments and documentations  
 
 Global:  
--[x] kernels  
--[x] algorithms  
--[ ] functions  
--[ ] file loading  
--[ ] async run  
+- [x] kernels  
+- [x] algorithms  
+- [ ] functions  
+- [ ] file loading  
+- [ ] async run  
 
 Kernels:  
--[x] component wise operators buffer/buffer  
--[x] component wise operators buffer/constant  
--[ ] correlation function  
--[ ] 1,2,3D Fourier transform  
+- [x] component wise operators buffer/buffer  
+- [x] component wise operators buffer/constant  
+- [ ] correlation function  
+- [ ] 1,2,3D Fourier transform  
 
 Algorithms:  
--[x] sum  
--[ ] min/max  
--[ ] moments and cumulants  
+- [x] sum  
+- [ ] min/max  
+- [ ] moments and cumulants  
 
 Random number generation:  
--[x] philox 4x32,2x64,4x64  
--[ ] others  
+- [x] philox 4x32,2x64,4x64  
+- [ ] others  

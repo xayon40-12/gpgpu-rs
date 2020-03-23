@@ -32,11 +32,11 @@ impl Handler {
             .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),buf.type_name()))
     }
     
-    fn set_kernel_arg_buf(&self, kernel: &(Kernel,BTreeMap<String,u32>), n: &str, m: &str) -> crate::Result<()>{
+    fn set_kernel_arg_buf(&self, name: &str, kernel: &(Kernel,BTreeMap<String,u32>), n: &str, m: &str) -> crate::Result<()>{
         let buf = self.buffers
             .get(n)
             .expect(&format!("Buffer \"{}\" not found",n));
-        iner_each!(buf,BufType,buf,kernel.0.set_arg(kernel.1[m],buf))
+        iner_each!(buf,BufType,buf,kernel.0.set_arg(*kernel.1.get(m).expect(&format!("Param \"{}\" not present in kernel \"{}\"",m,name)),buf))
     }
 
     pub fn get<T: ocl::OclPrm>(&self, name: &str) -> crate::Result<Vec<T>> {
@@ -55,15 +55,15 @@ impl Handler {
         Ok(val[0])
     }
 
-    fn _set_arg(&self, desc: Vec<KernelArg>, kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
+    fn _set_arg(&self, name: &str, desc: Vec<KernelArg>, kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
         for d in desc {
             match d {
                 KernelArg::Param(n,v) =>
-                    iner_each!(v,Type,v,kernel.0.set_arg(kernel.1[n],v)),
+                    iner_each!(v,Type,v,kernel.0.set_arg(*kernel.1.get(n).expect(&format!("Param \"{}\" not present in kernel \"{}\"",n,name)),v)),
                 KernelArg::Buffer(n) =>
-                    self.set_kernel_arg_buf(kernel,n,n),
+                    self.set_kernel_arg_buf(name,kernel,n,n),
                 KernelArg::BufArg(n,m) =>
-                    self.set_kernel_arg_buf(kernel,n,m),
+                    self.set_kernel_arg_buf(name,kernel,n,m),
             }?;
         }
         Ok(())
@@ -71,7 +71,7 @@ impl Handler {
 
     pub fn set_arg(&mut self, name: &str, desc: Vec<KernelArg>) -> crate::Result<()> {
         let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
-        self._set_arg(desc,kernel)
+        self._set_arg(name,desc,kernel)
     }
 
 
@@ -87,7 +87,7 @@ impl Handler {
 
     pub fn run_arg(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> ocl::Result<()> {
         let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
-        self._set_arg(desc,kernel)?;
+        self._set_arg(name,desc,kernel)?;
 
         unsafe {
             kernel.0.cmd().global_work_size(dim).enq()

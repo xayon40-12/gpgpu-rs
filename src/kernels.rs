@@ -13,7 +13,7 @@ macro_rules! random {
     (philox4x32_10) => {
         "
             unsigned int key[2] = {x>>32,x};
-            const unsigned int l = 2;
+            const unsigned int l = 4;
             const unsigned int M = 0xD2511F53;
             const unsigned int M2 = 0xCD9E8D57;
             for(int i = 0;i<10;i++){
@@ -182,8 +182,8 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             src: random!(philox4x32_10,"
                 const uint l2 = l/2;
                 for(uint i = 0;i<l2;i+=2) {
-                    double u1 = (double)(((((ulong)src[x*l+i*2])<<32)+src[x*l+i*2+1])>>11)/(1l << 53);
-                    double u2 = (double)(((((ulong)src[x*l+i*2+2])<<32)+src[x*l+i*2+3])>>11)/(1l << 53);
+                    double u1 = (double)(((((ulong)src[x*l+i])<<32)+src[x*l+i+1])>>11)/(1l << 53);
+                    double u2 = (double)(((((ulong)src[x*l+i+2])<<32)+src[x*l+i+3])>>11)/(1l << 53);
                     dst[x*l2+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
                     dst[x*l2+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
                 }

@@ -1,7 +1,9 @@
 # gpgpu-rs  
 A simple GPU computing library based on OpenCL.  
 
-Not ready to be used.  
+Can be used more as a test than for real purpose yet.  
+Examples can be executed witch `cargo run --example [name]`. For instance:  
+`cargo run --example random`  
 
 # Features  
 - [ ] comments and documentations  
@@ -27,5 +29,5 @@ Algorithms:
 
 Random number generation:  
 - [x] philox 4x32,2x64,4x64  
-- [x] uniform and normal distribution
+- [x] uniform and normal distribution  
 - [ ] others  

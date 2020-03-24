@@ -76,3 +76,19 @@ fn sum() -> gpgpu::Result<()> {
     Ok(())
 }
 
+#[test]
+fn correlation() -> gpgpu::Result<()> {
+    let num = 8;
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+        .add_buffer("dst", Len(F64(0.0), num))
+        .load_kernel("correlation")
+        .build()?;
+
+    gpu.run_arg("correlation",Dim::D1(num),vec![Buffer("src"),Buffer("dst")])?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * (num/2) as f64).collect::<Vec<_>>());
+
+    Ok(())
+}
+
+

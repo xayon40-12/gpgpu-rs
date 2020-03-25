@@ -18,6 +18,8 @@ pub struct Algorithm<'a> {
 
 pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
     vec![
+        // sum each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "sum",
             callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelArg>| {
@@ -35,37 +37,37 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 let bufsrc = bufsrc.expect("No source buffer given for algorithm \"sum\"");
                 let bufdst = bufdst.expect("No destination buffer given for algorithm \"sum\"");
                 let mut spacing = 2;
-                let x = match dim {
-                    D1(x) => x,
-                    D2(x,y) => x*y,
-                    D3(x,y,z) => x*y*z
+                let (x,d): (usize,Box<dyn Fn(usize) -> Dim>) = match dim {
+                    D1(x) => (x,Box::new(|l| D1(l))),
+                    D2(x,y) => (x,Box::new(move |l| D2(l,y))),
+                    _ => panic!("Dimension for algorithm \"sum\" should be either D1 or D2.")
                 };
                 let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
                 if x<=1 { return Ok(()); }
                 let l = len(spacing);
-                h.run_arg("algo_sum_src", D1(l), vec![bufsrc,bufdst.clone()])?;
+                h.run_arg("algo_sum_src", d(l), vec![bufsrc,bufdst.clone(),Param("xs",U64(x as u64))])?;
                 if spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run_arg("algo_sum", D1(l), vec![Param("s",U64(spacing as u64)),bufdst])?;
+                    h.run_arg("algo_sum", d(l), vec![Param("s",U64(spacing as u64)),bufdst,Param("xs",U64(x as u64))])?;
                 }
                 while spacing<x {
                     spacing *= 2;
                     let l = len(spacing);
-                    h.run_arg("algo_sum", D1(l), vec![Param("s",U64(spacing as u64))])?;
+                    h.run_arg("algo_sum", d(l), vec![Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
                 }
                 Ok(())
             }),
             kernels: vec![
                 Kernel {
                     name: "algo_sum_src",
-                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
-                    src: "dst[x*2] = src[x*2]+src[x*2+1];"
+                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*2+y*xs] = src[x*2+y*xs]+src[x*2+y*xs+1];"
                 },
                 Kernel {
                     name: "algo_sum",
-                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64)],
-                    src: "dst[x*s] = dst[x*s]+dst[x*s+s/2];"
+                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = dst[x*s+y*xs]+dst[x*s+y*xs+s/2];"
                 },
             ]
         },

@@ -63,15 +63,18 @@ fn times() -> gpgpu::Result<()> {
 
 #[test]
 fn sum() -> gpgpu::Result<()> {
-    let num = 8;
+    let x = 8;
+    let y = 3;
+    let num = x*y;
+    let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
     let mut gpu = Handler::builder()?
-        .add_buffer("src", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+        .add_buffer("src", Data(VecType::F64(v.clone())))
         .add_buffer("dst", Len(F64(0.0), num))
         .load_algorithm("sum")
         .build()?;
 
-    gpu.run_algorithm("sum",Dim::D1(num),vec![Buffer("src"),Buffer("dst")])?;
-    assert_eq!(gpu.get::<f64>("dst")?[0], (0..num).map(|i| i as f64).fold(0.0,|i,a| i+a));
+    gpu.run_algorithm("sum",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|i,a| i+a)).collect::<Vec<_>>());
 
     Ok(())
 }

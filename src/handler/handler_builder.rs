@@ -93,8 +93,8 @@ impl<'a> HandlerBuilder<'a> {
             prog.pop(); // remove last unnescessary ","
             prog += ") {\n";
             prog += "    long x = get_global_id(0); long x_size = get_global_size(0);\n";
-            prog += "    long y = get_global_id(0); long y_size = get_global_size(0);\n";
-            prog += "    long z = get_global_id(0); long z_size = get_global_size(0);\n";
+            prog += "    long y = get_global_id(1); long y_size = get_global_size(1);\n";
+            prog += "    long z = get_global_id(2); long z_size = get_global_size(2);\n";
             prog += src;
             prog += "\n}\n";
         }

@@ -1,5 +1,6 @@
 use ocl::SpatialDims;
 
+#[derive(Clone,Copy)]
 pub enum Dim {
     D1(usize),
     D2(usize,usize),

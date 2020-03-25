@@ -169,37 +169,29 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             src: "dst[x] = a[x]*b[x];"
         },
         Kernel {
-            name: "divide",
+            name: "divides",
             args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
             src: "dst[x] = a[x]/b[x];"
         },
         Kernel {
             name: "cplus",
-            args: vec![Buffer("a",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]+c;"
+            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            src: "dst[x] = src[x]+c;"
         },
         Kernel {
             name: "cminus",
-            args: vec![Buffer("a",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]-c;"
+            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            src: "dst[x] = src[x]-c;"
         },
         Kernel {
             name: "ctimes",
-            args: vec![Buffer("a",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]*c;"
+            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            src: "dst[x] = src[x]*c;"
         },
         Kernel {
-            name: "cdivide",
-            args: vec![Buffer("a",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]/c;"
-        },
-
-        // Shoulb be used in 1D (intependant of dimension so multiply each dimension to give
-        // Dim::D1)
-        Kernel {
-            name: "correlation",
-            args: vec![Buffer("src",F64),Buffer("dst",F64)],
-            src: "dst[x] = src[x]*src[x_size/2];"
+            name: "cdivides",
+            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            src: "dst[x] = src[x]/c;"
         },
     ].into_iter().map(|k| (k.name,k)).collect()
 }

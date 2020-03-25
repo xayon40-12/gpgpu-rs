@@ -81,15 +81,48 @@ fn sum() -> gpgpu::Result<()> {
 
 #[test]
 fn correlation() -> gpgpu::Result<()> {
-    let num = 8;
+    let x = 8;
+    let y = 3;
+    let num = x*y;
     let mut gpu = Handler::builder()?
-        .add_buffer("src", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+        .add_buffer("src", Data(VecType::F64((0..num).map(|i| (i%x) as f64).collect())))
         .add_buffer("dst", Len(F64(0.0), num))
-        .load_kernel("correlation")
+        .load_algorithm("correlation")
         .build()?;
 
-    gpu.run_arg("correlation",Dim::D1(num),vec![Buffer("src"),Buffer("dst")])?;
-    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * (num/2) as f64).collect::<Vec<_>>());
+    gpu.run_algorithm("correlation",Dim::D1(num),vec![Buffer("src"),Buffer("dst")])?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| (i%x) as f64 * (x/2) as f64).collect::<Vec<_>>());
+
+    Ok(())
+}
+
+#[test]
+fn moments() -> gpgpu::Result<()> {
+    let x = 8;
+    let y = 3;
+    let num = x*y;
+    let n = 4;
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Data(VecType::F64((0..num).map(|i| (i%x) as f64).collect())))
+        .add_buffer("tmp", Len(F64(0.0), num))
+        .add_buffer("sum", Len(F64(0.0), num))
+        .add_buffer("dst", Len(F64(0.0), n*y))
+        .load_kernel("times")
+        .load_kernel("cdivides")
+        .load_algorithm("moments")
+        .load_algorithm("sum")
+        .build()?;
+
+    gpu.run_algorithm("moments",Dim::D2(x,y),vec![Buffer("src"),Buffer("tmp"),Buffer("sum"),Buffer("dst"),Param("n",U32(n as u32))])?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num)
+        .map(|i| {
+            let i = (i%x) as f64;
+            (i,i*i,i*i*i,i*i*i*i)
+        })
+        .collect::<Vec<_>>().chunks(x)
+        .map(|c| c.into_iter().fold([0.0,0.0,0.0,0.0],|[a,b,c,d],(e,f,g,h)| [a+e,b+f,c+g,d+h]).into_iter().map(|i| i/x as f64).collect::<Vec<f64>>())
+        .flatten().collect::<Vec<f64>>()
+    );
 
     Ok(())
 }

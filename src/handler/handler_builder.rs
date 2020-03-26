@@ -2,7 +2,7 @@ use ocl::ProQue;
 use std::collections::{HashMap,HashSet,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{Kernel,self};
-use crate::algorithms::{self,Algorithm};
+use crate::algorithms::{self,Algorithm,Needed};
 
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
@@ -68,10 +68,15 @@ impl<'a> HandlerBuilder<'a> {
 
     pub fn build(mut self) -> ocl::Result<super::Handler> {
         let mut algorithms = HashMap::new();
-        for (Algorithm { name,kernels,callback },loadedname) in self.algorithms {
-            for k in kernels {
-                let name = k.name;
-                self.kernels.push((k,BTreeMap::new(),Some(name.to_string())));
+        for (Algorithm { name,callback,needed },loadedname) in self.algorithms {
+            for n in needed {
+                match n {
+                    Needed::NewKernel(k) => {
+                        let name = k.name;
+                        self.kernels.push((k,BTreeMap::new(),Some(name.to_string())));
+                    },
+                    _ => panic!("Other Needed variantes not handled.")
+                }
             }
             let name = loadedname.unwrap_or(name.to_string());
             if algorithms.insert(name.clone(),callback).is_some() { panic!("Cannot add two algorithms with the same name \"{}\"",name) }

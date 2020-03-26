@@ -147,28 +147,29 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     _ => panic!("Dimension should be either D1 or D2 for algorithm \"moments\"")
                 };
 
-                h.run_algorithm("sum",dim,vec![Buffer(src).clone(),Buffer(sum).clone()])?;
-                h.run_arg("move_0_to_i",D2(1,y),vec![BufArg(sum,"src").clone(),BufArg(dst,"dst").clone(),Param("i",U64(0)),Param("xs",U64(x as u64))])?;
+                h.run_algorithm("sum",dim,vec![Buffer(src),Buffer(sum)])?;
+                h.set_arg("move_0_to_i",vec![BufArg(sum,"src"),BufArg(dst,"dst"),Param("i",U64(0)),Param("xs",U64(x as u64)),Param("n",U64(num as u64))]);
+                h.run("move_0_to_i",D2(1,y))?;
                 if num >= 1 {
-                    h.run_arg("times",D1(l),vec![BufArg(src,"a").clone(),BufArg(src,"b").clone(),BufArg(tmp,"dst").clone()])?;
-                    h.run_algorithm("sum",dim,vec![Buffer(tmp).clone(),Buffer(sum).clone()])?;
-                    h.run_arg("move_0_to_i",D2(1,y),vec![BufArg(sum,"src").clone(),BufArg(dst,"dst").clone(),Param("i",U64(1)),Param("xs",U64(x as u64))])?;
-                    h.set_arg("times",vec![BufArg(tmp,"a").clone(),BufArg(src,"b").clone(),BufArg(tmp,"dst").clone()])?;
+                    h.run_arg("times",D1(l),vec![BufArg(src,"a"),BufArg(src,"b"),BufArg(tmp,"dst")])?;
+                    h.run_algorithm("sum",dim,vec![Buffer(tmp),Buffer(sum)])?;
+                    h.run_arg("move_0_to_i",D2(1,y),vec![Param("i",U64(1))])?;
+                    h.set_arg("times",vec![BufArg(tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l))?;
-                    h.run_algorithm("sum",dim,vec![Buffer(tmp).clone(),Buffer(sum).clone()])?;
-                    h.run_arg("move_0_to_i",D2(1,y),vec![BufArg(sum,"src").clone(),BufArg(dst,"dst").clone(),Param("i",U64(i as u64)),Param("xs",U64(x as u64))])?;
+                    h.run_algorithm("sum",dim,vec![Buffer(tmp),Buffer(sum)])?;
+                    h.run_arg("move_0_to_i",D2(1,y),vec![Param("i",U64(i as u64))])?;
                 }
-                h.run_arg("cdivides",D1(num as _),vec![BufArg(dst,"src").clone(),Param("c",F64(x as f64)),BufArg(dst,"dst")])?;
+                h.run_arg("cdivides",D1(l as _),vec![BufArg(dst,"src"),Param("c",F64(x as f64)),BufArg(dst,"dst")])?;
 
                 Ok(())
             }),
             kernels: vec![
                 Kernel {
                     name: "move_0_to_i",
-                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64)],
-                    src: "dst[y*xs+i] = src[y*xs];"
+                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
+                    src: "dst[y*n+i] = src[y*xs];"
                 },
             ]
         },

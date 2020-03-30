@@ -141,3 +141,27 @@ fn load_kernel_already_created() {
         .load_kernel_named("divides","times")
         .build().unwrap();
 }
+
+
+#[test]
+fn data_file() {
+    use gpgpu::data_file::DataFile;
+
+    let mut file = String::new();
+    let (x,y,z) = (10,10,10);
+    for i in 0..x {
+        for j in 0..y {
+            for k in 0..z {
+                file += &format!("{} {} {} {}\n",i,j,k,i+x*(j+y*k));
+            }
+        }
+    }
+    let data = DataFile::from_column(&file);
+    for k in 0..z {
+        for i in 0..x {
+            for j in 0..y {
+                assert_eq!((i+x*(j+y*k)) as f64,data.get(&[i as f64,j as f64,k as f64]));
+            }
+        }
+    }
+}

@@ -12,6 +12,6 @@ pub mod kernels;
 pub mod algorithms;
 pub mod philox;
 
-pub mod file;
+pub mod data_file;
 
 pub type Result<T> = ocl::Result<T>;

@@ -12,20 +12,22 @@ Global:
 - [x] kernels  
 - [x] algorithms  
 - [ ] functions  
-- [ ] file loading  
-- [ ] async run  
+- [x] file loading (CPU)
+- [ ] file loading (GPU)
+- [ ] file loading interpolation
 
 Kernels:  
 - [x] component wise operators buffer/buffer  
 - [x] component wise operators buffer/constant  
 - [ ] component wise operators for each buffer types (currently only F64)  
-- [ ] correlation function  
+- [x] correlation function  
 - [ ] 1,2,3D Fourier transform  
 
 Algorithms:  
 - [x] sum  
 - [ ] min/max  
-- [ ] moments and cumulants  
+- [x] moments
+- [ ] cumulants  
 
 Random number generation:  
 - [x] philox 4x32,2x64,4x64  

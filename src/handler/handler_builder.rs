@@ -1,14 +1,14 @@
 use ocl::ProQue;
-use std::collections::{HashMap,HashSet,BTreeMap};
+use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{Kernel,self};
-use crate::algorithms::{self,Algorithm,Needed};
+use crate::algorithms::{self,Algorithm,Needed,Callback};
 
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
-    kernels: Vec<(Kernel<'a>,BTreeMap<String,u32>,Option<String>)>,
-    algorithms: Vec<(Algorithm<'a>,Option<String>)>,
+    kernels: HashMap<&'a str,(Kernel<'a>,&'a str)>,
+    algorithms: HashMap<&'a str,(Callback,&'a str)>,
     buffers: Vec<(String,BufferConstructor)>
 }
 
@@ -17,8 +17,8 @@ impl<'a> HandlerBuilder<'a> {
         Ok(HandlerBuilder {
             available_kernels: kernels::kernels(),
             available_algorithms: algorithms::algorithms(),
-            kernels: Vec::new(),
-            algorithms: Vec::new(),
+            kernels: HashMap::new(),
+            algorithms: HashMap::new(),
             buffers: Vec::new()
         })
     }
@@ -36,63 +36,102 @@ impl<'a> HandlerBuilder<'a> {
         hand
     }
 
-    pub fn create_kernel(mut self, kernel: Kernel<'a>) -> Self {
-        self.kernels.push((kernel,BTreeMap::new(),None));
-        self
+    pub fn create_kernel(self, kernel: Kernel<'a>) -> Self {
+        let name = kernel.name;
+        self.add_kernel(kernel, Some(name),None)
     }
 
-    pub fn load_kernel(mut self, name: &str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),None));
-        self
+    pub fn load_kernel(self, name: &str) -> Self {
+        let kernel = self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone();
+        self.add_kernel(kernel,None,None)
     }
 
-    pub fn load_kernel_named(mut self, name: &str, as_name: &str) -> Self {
-        self.kernels.push((self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),BTreeMap::new(),Some(as_name.to_string())));
-        self
+    pub fn load_kernel_named(self, name: &str, as_name: &'a str) -> Self {
+        let kernel = self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone();
+        self.add_kernel(kernel,Some(as_name),None)
     }
-
-    pub fn create_algorithm(mut self, algorithm: Algorithm<'a>) -> Self {
-        self.algorithms.push((algorithm,None));
-        self
-    }
-
-    pub fn load_algorithm(mut self, name: &str) -> Self {
-        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),None));
-        self
-    }
-
-    pub fn load_algorithm_named(mut self, name: &str, as_name: &str) -> Self {
-        self.algorithms.push((self.available_algorithms.get(name).expect(&format!("kernel \"{}\" not found",name)).clone(),Some(as_name.to_string())));
-        self
-    }
-
-    pub fn build(mut self) -> ocl::Result<super::Handler> {
-        let mut algorithms = HashMap::new();
-        for (Algorithm { name,callback,needed },loadedname) in self.algorithms {
-            for n in needed {
-                match n {
-                    Needed::NewKernel(k) => {
-                        let name = k.name;
-                        self.kernels.push((k,BTreeMap::new(),Some(name.to_string())));
-                    },
-                    _ => panic!("Other Needed variantes not handled.")
-                }
+    
+    fn add_kernel(mut self, kernel: Kernel<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
+        let name = kernel.name;
+        if let Some(as_name) = as_name {
+            if let Some((_,from)) = self.kernels.get(as_name) {
+                panic!("Cannot add two kernels with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
+            } else {
+                self.kernels.insert(as_name,(kernel,"User"));
             }
-            let name = loadedname.unwrap_or(name.to_string());
-            if algorithms.insert(name.clone(),callback).is_some() { panic!("Cannot add two algorithms with the same name \"{}\"",name) }
+        } else if let Some((_,from)) = self.kernels.get(name) {
+            if from == &"User" {
+                panic!("Cannot add two kernels with the same name \"{}\", already added by User.",name);
+            } else {
+                return self;
+            }
+        } else {
+            self.kernels.insert(name,(kernel,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
         }
 
+        self
+    }
+
+    pub fn create_algorithm(self, algorithm: Algorithm<'a>) -> Self {
+        let name = algorithm.name;
+        self.add_algorithm(algorithm, Some(name), None)
+    }
+
+    pub fn load_algorithm(self, name: &str) -> Self {
+        let alg = self.available_algorithms.get(name).expect(&format!("algorithm \"{}\" not found",name)).clone();
+        self.add_algorithm(alg, None, None)
+    }
+
+    pub fn load_algorithm_named(self, name: &str, as_name: &'a str) -> Self {
+        assert_ne!(name, as_name, "Names must be different for method \"load_algorithm_named\", given name \"{}\"", name);
+        let alg = self.available_algorithms.get(name).expect(&format!("algorithm \"{}\" not found",name)).clone();
+        self.add_algorithm(alg, Some(as_name), None)
+    }
+    
+    fn add_algorithm(mut self, alg: Algorithm<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
+        let Algorithm { name,callback,needed } = alg;
+        if let Some(as_name) = as_name {
+            if let Some((_,from)) = self.algorithms.get(as_name) {
+                panic!("Cannot add two algorithms with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
+            } else {
+                self.algorithms.insert(as_name,(callback,"User"));
+            }
+        } else if let Some((_,from)) = self.algorithms.get(name) {
+            if from == &"User" {
+                panic!("Cannot add two algorithms with the same name \"{}\", already added by User.",name);
+            } else {
+                return self;
+            }
+        } else {
+            self.algorithms.insert(name,(callback,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+        }
+        for n in needed {
+            self = match n {
+                Needed::NewKernel(k) => self.create_kernel(k),
+                Needed::KernelName(n) => {
+                    let kernel = self.available_kernels.get(n).expect(&format!("kernel \"{}\" not found",n)).clone();
+                    self.add_kernel(kernel,None,Some(as_name.unwrap_or(name)))
+                },
+                Needed::AlgorithmName(n) => {
+                    let alg = self.available_algorithms.get(n).expect(&format!("algorithm \"{}\" not found",n)).clone();
+                    self.add_algorithm(alg, None, Some(as_name.unwrap_or(name)))
+                },
+            }
+        }
+
+        self
+    }
+
+    pub fn build(self) -> ocl::Result<super::Handler> {
         let mut prog = String::new();
-        let mut kern_names = HashSet::new();
-        for (Kernel {name,src,args},_,_) in &self.kernels {
-            if !kern_names.insert(name) { panic!("Cannot add two kernels with the same name \"{}\"",name) }
+        for (name,(Kernel {src,args,..},..)) in &self.kernels {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
                     KernelConstructor::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    KernelConstructor::Buffer(n,t) => 
-                        prog += &format!("__global {} *{},", t.type_name_ocl(), n)//TODO use buffer typename
+                    KernelConstructor::Buffer(n,t) =>
+                        prog += &format!("__global {} *{},", t.type_name_ocl(), n)
                 };
             }
             prog.pop(); // remove last unnescessary ","
@@ -131,7 +170,8 @@ impl<'a> HandlerBuilder<'a> {
         }
 
         let mut kernels = HashMap::new();
-        for (Kernel {name,src: _,args},mut map,loadedname) in self.kernels {
+        for (name,(Kernel {args,..},..)) in self.kernels {
+            let mut map = BTreeMap::new();
             let mut kernel = pq.kernel_builder(name);
             let mut id = 0;
             for a in args {
@@ -146,9 +186,10 @@ impl<'a> HandlerBuilder<'a> {
                     },
                 };
             }
-            let name = loadedname.unwrap_or(name.to_string());
-            if kernels.insert(name.clone(),(kernel.build()?,map)).is_some() { panic!("Cannot add two kernels with the same name \"{}\"",name) }
+            kernels.insert(name.to_string(),(kernel.build()?,map));
         }
+
+        let algorithms = self.algorithms.into_iter().map(|(s,(c,_))| (s.to_string(),c)).collect();
 
         Ok(super::Handler {
             pq,

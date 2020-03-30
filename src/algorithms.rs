@@ -179,8 +179,12 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
                     src: "dst[y*n+i] = src[y*xs];"
                 }),
+                KernelName("times"),
+                KernelName("cdivides"),
+                AlgorithmName("sum"),
             ]
         },
+        #[allow(unused)] //TODO remove when algorithm FFT is finished
         Algorithm {
             name: "FFT",
             callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelArg>| {

@@ -6,26 +6,27 @@ pub struct DataFile {
 }
 
 impl DataFile {
-    fn from_column<'a>(text: &'a str) -> DataFile {
-        let mut tab = text.trim().lines().map(|l| 
-            l.trim().split(" ").map(|n| n.parse::<f64>().unwrap()).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        tab.sort_by(|a,b| {
-            let mut i = 0;
-            for i in 0..a.len()-1 {
-                if a[i] < b[i] {
-                    return std::cmp::Ordering::Less;
-                } else if a[i] > b[i] {
-                    return std::cmp::Ordering::Greater;
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
+    //fn from_column<'a>(text: &'a str) -> DataFile {
+    //    let mut tab = text.trim().lines().map(|l| 
+    //        l.trim().split(" ").map(|n| n.parse::<f64>().unwrap()).collect::<Vec<_>>()
+    //    ).collect::<Vec<_>>();
+    //    tab.sort_by(|a,b| {
+    //        let mut i = 0;
+    //        for i in 0..a.len()-1 {
+    //            if a[i] < b[i] {
+    //                return std::cmp::Ordering::Less;
+    //            } else if a[i] > b[i] {
+    //                return std::cmp::Ordering::Greater;
+    //            }
+    //        }
+    //        std::cmp::Ordering::Equal
+    //    });
 
 
-        DataFile{ dx, lenx, data }
-    }
+    //    DataFile{ dx, lenx, data }
+    //}
 
+    #[allow(dead_code)]
     fn get(&self, coord: &[f64]) -> f64 {
         assert_eq!(coord.len(),self.dx.len());
         let mut idx = vec![];

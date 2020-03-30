@@ -107,10 +107,7 @@ fn moments() -> gpgpu::Result<()> {
         .add_buffer("tmp", Len(F64(0.0), num))
         .add_buffer("sum", Len(F64(0.0), num))
         .add_buffer("dst", Len(F64(0.0), n*y))
-        .load_kernel("times")
-        .load_kernel("cdivides")
         .load_algorithm("moments")
-        .load_algorithm("sum")
         .build()?;
 
     gpu.run_algorithm("moments",Dim::D2(x,y),vec![Buffer("src"),Buffer("tmp"),Buffer("sum"),Buffer("dst"),Param("n",U32(n as u32))])?;
@@ -120,11 +117,27 @@ fn moments() -> gpgpu::Result<()> {
             (i,i*i,i*i*i,i*i*i*i)
         })
         .collect::<Vec<_>>().chunks(x)
-        .map(|c| c.into_iter().fold([0.0,0.0,0.0,0.0],|[a,b,c,d],(e,f,g,h)| [a+e,b+f,c+g,d+h]).into_iter().map(|i| i/x as f64).collect::<Vec<f64>>())
+        .map(|c| c.into_iter().fold([0.0,0.0,0.0,0.0],|[a,b,c,d],(e,f,g,h)| [a+e,b+f,c+g,d+h]).iter().map(|i| i/x as f64).collect::<Vec<f64>>())
         .flatten().collect::<Vec<f64>>()
     );
 
     Ok(())
 }
 
+#[test]
+#[should_panic(expected = "Cannot add two algorithms with the same name \"sum\", already added by algorithm \"moments\".")]
+fn load_algorithm_already_created() {
+    let _gpu = Handler::builder().unwrap()
+        .load_algorithm("moments")
+        .load_algorithm_named("correlation","sum")
+        .build().unwrap();
+}
 
+#[test]
+#[should_panic(expected = "Cannot add two kernels with the same name \"times\", already added by algorithm \"moments\".")]
+fn load_kernel_already_created() {
+    let _gpu = Handler::builder().unwrap()
+        .load_algorithm("moments")
+        .load_kernel_named("divides","times")
+        .build().unwrap();
+}

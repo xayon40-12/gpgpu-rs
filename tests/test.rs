@@ -145,10 +145,10 @@ fn load_kernel_already_created() {
 
 #[test]
 fn data_file() {
-    use gpgpu::data_file::DataFile;
+    use gpgpu::data_file::{DataFile,Format};
 
     let mut file = String::new();
-    let (x,y,z) = (10,10,10);
+    let (x,y,z) = (4,4,4);
     for i in 0..x {
         for j in 0..y {
             for k in 0..z {
@@ -156,7 +156,7 @@ fn data_file() {
             }
         }
     }
-    let data = DataFile::from_column(&file);
+    let data = DataFile::parse(Format::Column(&file));
     for k in 0..z {
         for i in 0..x {
             for j in 0..y {
@@ -164,4 +164,23 @@ fn data_file() {
             }
         }
     }
+}
+
+#[test]
+fn function_test() -> gpgpu::Result<()> {
+    let num = 8;
+    let mut gpu = Handler::builder()?
+        .add_buffer("u", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
+        .load_function("swap")
+        .create_kernel(Kernel {
+            name: "_main",
+            src: "swap(&u[x*2],&u[x*2+1]);",
+            args: vec![KC::Buffer("u",EmT::F64)]
+        })
+    .build()?;
+
+    gpu.run_arg("_main",Dim::D1(num/2),vec![Buffer("u")])?;
+    assert_eq!(gpu.get::<f64>("u")?, (0..num).map(|j| (j + (j+1)%2 -j%2) as f64 ).collect::<Vec<_>>());
+
+    Ok(())
 }

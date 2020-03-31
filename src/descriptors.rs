@@ -15,6 +15,15 @@ pub enum BufferConstructor {
 pub enum KernelConstructor<'a> {
     Param(&'a str, EmptyType),
     Buffer(&'a str, EmptyType),
+    ConstBuffer(&'a str, EmptyType),
+}
+
+#[derive(Clone)]
+pub enum FunctionConstructor<'a> {
+    Param(&'a str, EmptyType),
+    Ptr(&'a str, EmptyType),
+    GlobalPtr(&'a str, EmptyType),
+    ConstPtr(&'a str, EmptyType),
 }
 
 use std::any::{Any,type_name};

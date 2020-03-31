@@ -97,7 +97,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
             needed: vec![
                 NewKernel(Kernel {
                     name: "algo_sum_src",
-                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
                     src: "dst[x*2+y*xs] = src[x*2+y*xs]+src[x*2+y*xs+1];"
                 }),
                 NewKernel(Kernel {
@@ -123,7 +123,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
             needed: vec![
                 NewKernel(Kernel {
                     name: "correlation",
-                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
                     src: "dst[x+y*x_size] = src[x+y*x_size]*src[x_size/2+y*x_size];"
                 })
             ]
@@ -176,7 +176,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
             needed: vec![
                 NewKernel(Kernel {
                     name: "move_0_to_i",
-                    args: vec![KC::Buffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
                     src: "dst[y*n+i] = src[y*xs];"
                 }),
                 KernelName("times"),

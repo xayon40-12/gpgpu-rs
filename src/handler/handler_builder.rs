@@ -1,15 +1,20 @@
 use ocl::ProQue;
 use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
-use crate::kernels::{Kernel,self};
+use crate::kernels::{self,Kernel};
 use crate::algorithms::{self,Algorithm,Needed,Callback};
+use crate::functions::{self,Function};
+use crate::data_file::{DataFile,Format};
 
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
+    available_functions: HashMap<&'static str,Function<'a>>,
     kernels: HashMap<&'a str,(Kernel<'a>,&'a str)>,
     algorithms: HashMap<&'a str,(Callback,&'a str)>,
-    buffers: Vec<(String,BufferConstructor)>
+    functions: HashMap<&'a str,(Function<'a>,&'a str)>,
+    buffers: Vec<(String,BufferConstructor)>,
+    data: HashMap<&'a str, DataFile>,
 }
 
 impl<'a> HandlerBuilder<'a> {
@@ -17,9 +22,12 @@ impl<'a> HandlerBuilder<'a> {
         Ok(HandlerBuilder {
             available_kernels: kernels::kernels(),
             available_algorithms: algorithms::algorithms(),
+            available_functions: functions::functions(),
             kernels: HashMap::new(),
             algorithms: HashMap::new(),
-            buffers: Vec::new()
+            functions: HashMap::new(),
+            buffers: Vec::new(),
+            data: HashMap::new(),
         })
     }
 
@@ -34,6 +42,42 @@ impl<'a> HandlerBuilder<'a> {
             hand = hand.add_buffer(name,desc);
         }
         hand
+    }
+
+    pub fn create_function(self, function: Function<'a>) -> Self {
+        let name = function.name;
+        self.add_function(function, Some(name),None)
+    }
+
+    pub fn load_function(self, name: &str) -> Self {
+        let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
+        self.add_function(function,None,None)
+    }
+
+    pub fn load_function_named(self, name: &str, as_name: &'a str) -> Self {
+        let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
+        self.add_function(function,Some(as_name),None)
+    }
+    
+    fn add_function(mut self, function: Function<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
+        let name = function.name;
+        if let Some(as_name) = as_name {
+            if let Some((_,from)) = self.functions.get(as_name) {
+                panic!("Cannot add two functions with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
+            } else {
+                self.functions.insert(as_name,(function,"User"));
+            }
+        } else if let Some((_,from)) = self.functions.get(name) {
+            if from == &"User" {
+                panic!("Cannot add two functions with the same name \"{}\", already added by User.",name);
+            } else {
+                return self;
+            }
+        } else {
+            self.functions.insert(name,(function,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+        }
+
+        self
     }
 
     pub fn create_kernel(self, kernel: Kernel<'a>) -> Self {
@@ -124,6 +168,31 @@ impl<'a> HandlerBuilder<'a> {
 
     pub fn build(self) -> ocl::Result<super::Handler> {
         let mut prog = String::new();
+
+        for (name,(Function {src,args,ret_type,..},..)) in &self.functions {
+            prog += &if let Some(ret) = ret_type {
+                format!("\ninline {} {}(\n",ret.type_name_ocl(),name)
+            } else {
+                format!("\nvoid {}(\n",name)
+            };
+            for a in args {
+                match a {
+                    FunctionConstructor::Param(n,t) => 
+                        prog += &format!("{} {},", t.type_name_ocl(), n),
+                    FunctionConstructor::Ptr(n,t) =>
+                        prog += &format!("{} *{},", t.type_name_ocl(), n),
+                    FunctionConstructor::GlobalPtr(n,t) =>
+                        prog += &format!("__global {} *{},", t.type_name_ocl(), n),
+                    FunctionConstructor::ConstPtr(n,t) =>
+                        prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
+                };
+            }
+            prog.pop(); // remove last unnescessary ","
+            prog += ") {\n";
+            prog += src;
+            prog += "\n}\n";
+        }
+
         for (name,(Kernel {src,args,..},..)) in &self.kernels {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
@@ -131,7 +200,9 @@ impl<'a> HandlerBuilder<'a> {
                     KernelConstructor::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
                     KernelConstructor::Buffer(n,t) =>
-                        prog += &format!("__global {} *{},", t.type_name_ocl(), n)
+                        prog += &format!("__global {} *{},", t.type_name_ocl(), n),
+                    KernelConstructor::ConstBuffer(n,t) =>
+                        prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
                 };
             }
             prog.pop(); // remove last unnescessary ","
@@ -180,10 +251,10 @@ impl<'a> HandlerBuilder<'a> {
                         map.insert(n.to_string(),id); id += 1;
                         each_default!(param,v,kernel)
                     },
-                    KernelConstructor::Buffer(n,b) => {
+                    KernelConstructor::Buffer(n,b) | KernelConstructor::ConstBuffer(n,b) => {
                         map.insert(n.to_string(),id); id += 1;
                         each_default!(buffer,b,kernel)
-                    },
+                    }
                 };
             }
             kernels.insert(name.to_string(),(kernel.build()?,map));
@@ -191,11 +262,27 @@ impl<'a> HandlerBuilder<'a> {
 
         let algorithms = self.algorithms.into_iter().map(|(s,(c,_))| (s.to_string(),c)).collect();
 
+        let data = self.data.into_iter().map(|(s,d)| (s.to_string(),d)).collect();
+
         Ok(super::Handler {
             pq,
             kernels,
             algorithms,
-            buffers
+            buffers,
+            data
+        })
+    }
+
+    pub fn load_data(mut self, name: &'a str, data: Format<'a>) -> Self {
+        use crate::descriptors::{EmptyType::*,FunctionConstructor::*};
+
+        let data = DataFile::parse(data);
+        self.data.insert(name,data);
+        self.create_function(Function {
+            name,
+            args: vec![Ptr("coords",F64)],
+            ret_type: Some(F64),
+            src: "", //TODO
         })
     }
 

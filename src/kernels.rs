@@ -155,42 +155,42 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
 
         Kernel {
             name: "plus",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
             src: "dst[x] = a[x]+b[x];"
         },
         Kernel {
             name: "minus",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
             src: "dst[x] = a[x]-b[x];"
         },
         Kernel {
             name: "times",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
             src: "dst[x] = a[x]*b[x];"
         },
         Kernel {
             name: "divides",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
             src: "dst[x] = a[x]/b[x];"
         },
         Kernel {
             name: "cplus",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
             src: "dst[x] = src[x]+c;"
         },
         Kernel {
             name: "cminus",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
             src: "dst[x] = src[x]-c;"
         },
         Kernel {
             name: "ctimes",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
             src: "dst[x] = src[x]*c;"
         },
         Kernel {
             name: "cdivides",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
             src: "dst[x] = src[x]/c;"
         },
     ].into_iter().map(|k| (k.name,k)).collect()

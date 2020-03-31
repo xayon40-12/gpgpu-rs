@@ -7,6 +7,7 @@ pub use handler_builder::HandlerBuilder;
 use crate::dim::Dim;
 use crate::descriptors::{KernelArg,BufType,Type};
 use crate::algorithms::Callback;
+use crate::data_file::DataFile;
 
 use std::any::type_name;
 
@@ -16,6 +17,7 @@ pub struct Handler {
     kernels: HashMap<String,(Kernel,BTreeMap<String,u32>)>,
     algorithms: HashMap<String,Callback>,
     buffers: HashMap<String,BufType>,
+    data: HashMap<String,DataFile>,
 }
 
 impl Handler {

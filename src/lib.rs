@@ -10,6 +10,7 @@ pub use dim::Dim;
 
 pub mod kernels;
 pub mod algorithms;
+pub mod functions;
 pub mod philox;
 
 pub mod data_file;

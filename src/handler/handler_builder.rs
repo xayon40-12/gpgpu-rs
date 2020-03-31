@@ -9,10 +9,10 @@ use crate::data_file::{DataFile,Format};
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
-    available_functions: HashMap<&'static str,Function<'a>>,
+    available_functions: HashMap<&'static str,Function<'a,&'static str,&'static str>>,
     kernels: HashMap<&'a str,(Kernel<'a>,&'a str)>,
     algorithms: HashMap<&'a str,(Callback,&'a str)>,
-    functions: HashMap<&'a str,(Function<'a>,&'a str)>,
+    functions: HashMap<String,(Function<'a,String,String>,String)>,
     buffers: Vec<(String,BufferConstructor)>,
     data: HashMap<&'a str, DataFile>,
 }
@@ -44,37 +44,37 @@ impl<'a> HandlerBuilder<'a> {
         hand
     }
 
-    pub fn create_function(self, function: Function<'a>) -> Self {
-        let name = function.name;
-        self.add_function(function, Some(name),None)
+    pub fn create_function<S: Into<String>+Clone,T: Into<String>+Clone>(self, function: Function<'a,S,T>) -> Self {
+        let name = function.name.clone().into();
+        self.add_function(function.convert(), Some(name),None)
     }
 
     pub fn load_function(self, name: &str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function,None,None)
+        self.add_function(function.convert(),None,None)
     }
 
     pub fn load_function_named(self, name: &str, as_name: &'a str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function,Some(as_name),None)
+        self.add_function(function.convert(),Some(as_name.into()),None)
     }
     
-    fn add_function(mut self, function: Function<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
-        let name = function.name;
+    fn add_function(mut self, function: Function<'a,String,String>, as_name: Option<String>, from_alg: Option<&'a str>) -> Self{
+        let name = function.name.clone();
         if let Some(as_name) = as_name {
-            if let Some((_,from)) = self.functions.get(as_name) {
+            if let Some((_,from)) = self.functions.get(&as_name) {
                 panic!("Cannot add two functions with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
             } else {
-                self.functions.insert(as_name,(function,"User"));
+                self.functions.insert(as_name.into(),(function,"User".into()));
             }
-        } else if let Some((_,from)) = self.functions.get(name) {
+        } else if let Some((_,from)) = self.functions.get(&name) {
             if from == &"User" {
                 panic!("Cannot add two functions with the same name \"{}\", already added by User.",name);
             } else {
                 return self;
             }
         } else {
-            self.functions.insert(name,(function,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+            self.functions.insert(name,(function,from_alg.unwrap_or("").into()));//TODO verify if empty string here causes problem
         }
 
         self
@@ -274,16 +274,10 @@ impl<'a> HandlerBuilder<'a> {
     }
 
     pub fn load_data(mut self, name: &'a str, data: Format<'a>) -> Self {
-        use crate::descriptors::{EmptyType::*,FunctionConstructor::*};
-
         let data = DataFile::parse(data);
+        self = self.create_function(data.to_function(name));
         self.data.insert(name,data);
-        self.create_function(Function {
-            name,
-            args: vec![Ptr("coords",F64)],
-            ret_type: Some(F64),
-            src: "", //TODO
-        })
+        self
     }
 
 

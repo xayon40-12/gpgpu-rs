@@ -10,14 +10,14 @@ use crate::descriptors::EmptyType as EmT;
 pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelArg>) -> crate::Result<()>)>;
 
 #[derive(Clone)]
-pub struct Algorithm<'a> {
+pub struct Algorithm<'a> { //TODO use one Into<String>+Clone for each &'a str
     pub name: &'a str,
     pub callback: Callback,
     pub needed: Vec<Needed<'a>>
 }
 
 #[derive(Clone)]
-pub enum Needed<'a> {
+pub enum Needed<'a> { //TODO use one Into<String>+Clone for each &'a str
     KernelName(&'a str),
     AlgorithmName(&'a str),
     NewKernel(Kernel<'a>)

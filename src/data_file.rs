@@ -1,10 +1,14 @@
+use crate::functions::Function;
+use crate::descriptors::{EmptyType::F64,FunctionConstructor::Ptr};
+
 // each steps length for each respective dimensions must be constant.
 #[derive(Debug)]
 pub struct DataFile {
     pub dx: Vec<f64>, // the difference between each steps for each dimensions.
     pub lenx: Vec<usize>,
     pub start: Vec<f64>,
-    pub data: Vec<f64>
+    pub data: Vec<f64>,
+    src: Option<String>,
 }
 
 pub enum Format<'a> {
@@ -18,18 +22,49 @@ impl DataFile {
         }
     }
 
-    pub fn get(&self, coord: &[f64]) -> f64 {
-        let len = coord.len();
+    pub fn get(&self, coords: &[f64]) -> f64 {
+        let len = coords.len();
         assert_eq!(len,self.dx.len());
         let mut idx = vec![];
-        for i in 0..coord.len() {
-            idx.push(((coord[i]-self.start[i]) / self.dx[i]) as usize);
+        for i in 0..coords.len() {
+            idx.push(((coords[i]-self.start[i]) / self.dx[i]) as usize);
         }
         let mut id = 0;
         for i in 0..idx.len() {
             id += idx[i]*self.lenx[i];
         }
         self.data[id]
+    }
+
+    pub fn to_function<'a>(&self, name: &'a str) -> Function<'a,&'a str,String> {
+        let src = format!("
+            double dx[] = {{{}}};
+            ulong lenx[] = {{{}}};
+            double start[] = {{{}}};
+            double data[] = {{{}}};
+
+            ulong idx[{len}];
+            for(int i = 0; i<{len}; i++) {{
+                idx[i] = (coords[i]-start[i]) / dx[i];
+            }}
+            ulong id = 0;
+            for(int i = 0; i<{len}; i++) {{
+                id += idx[i]*lenx[i];
+            }}
+            return data[id];
+        ",
+        self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+        self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
+        self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+        self.data.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+        len = self.dx.len());
+
+        Function {
+            name,
+            args: vec![Ptr("coords",F64)],
+            ret_type: Some(F64),
+            src,
+        }
     }
 }
 
@@ -84,5 +119,5 @@ fn from_column<'a>(text: &'a str) -> DataFile {
         }
     }
 
-    DataFile{ dx, lenx, start, data }
+    DataFile{ dx, lenx, start, data, src: None }
 }

@@ -1,5 +1,5 @@
 #[derive(Clone)]
-pub enum KernelArg<'a> {
+pub enum KernelArg<'a> { //TODO use one Into<String>+Clone for each &'a str
     Param(&'a str,Type),
     Buffer(&'a str),
     BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
@@ -12,14 +12,14 @@ pub enum BufferConstructor {
 }
 
 #[derive(Clone)]
-pub enum KernelConstructor<'a> {
+pub enum KernelConstructor<'a> { //TODO use one Into<String>+Clone for each &'a str
     Param(&'a str, EmptyType),
     Buffer(&'a str, EmptyType),
     ConstBuffer(&'a str, EmptyType),
 }
 
 #[derive(Clone)]
-pub enum FunctionConstructor<'a> {
+pub enum FunctionConstructor<'a> { //TODO use one Into<String>+Clone for each &'a str
     Param(&'a str, EmptyType),
     Ptr(&'a str, EmptyType),
     GlobalPtr(&'a str, EmptyType),

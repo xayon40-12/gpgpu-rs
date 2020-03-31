@@ -11,9 +11,9 @@ Examples can be executed witch `cargo run --example [name]`. For instance:
 Global:  
 - [x] kernels  
 - [x] algorithms  
-- [ ] functions  
+- [x] functions  
 - [x] file loading (CPU)
-- [ ] file loading (GPU)
+- [x] file loading (GPU)
 - [ ] file loading interpolation
 
 Kernels:  

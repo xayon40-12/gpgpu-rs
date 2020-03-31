@@ -13,7 +13,8 @@ Global:
 - [x] algorithms  
 - [x] functions  
 - [x] file loading (CPU)
-- [x] file loading (GPU)
+- [x] file loading (GPU) max elements: 8192
+- [ ] huge file loading (GPU)
 - [ ] file loading interpolation
 
 Kernels:  

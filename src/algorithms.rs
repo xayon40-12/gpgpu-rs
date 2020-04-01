@@ -254,3 +254,27 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         },
         ].into_iter().map(|a| (a.name,a)).collect()
 }
+
+#[allow(non_snake_case)]
+fn C(n: usize, k: usize) -> usize {
+    if k==0 || k==n {
+        1
+    } else {
+        C(n-1,k-1) + C(n-1,k)
+    }
+}
+
+// Only for D1
+pub fn moments_to_cumulants<'a>(moments: &'a [f64]) -> Vec<f64> {
+    let len = moments.len();
+    let mut cumulants = vec![0.0; len];
+    for n in 0..len {
+        let mut m = 0.0;
+        for k in 0..n {
+            m += C(n-1,k-1) as f64*cumulants[k]*moments[n-k];
+        }
+        cumulants[n] = moments[n] - m;
+    }
+
+    cumulants
+}

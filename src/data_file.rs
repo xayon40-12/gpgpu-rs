@@ -36,7 +36,7 @@ impl DataFile {
         self.data[id]
     }
 
-    pub fn to_function<'a>(&self, name: &'a str) -> Function<'a,&'a str,String> {
+    pub fn to_function<'a>(&self, name: &'a str) -> Function<'a> {
         let src = format!("
             double dx[] = {{{}}};
             ulong lenx[] = {{{}}};
@@ -60,10 +60,11 @@ impl DataFile {
         len = self.dx.len());
 
         Function {
-            name,
+            name: name.into(),
             args: vec![Ptr("coords",F64)],
             ret_type: Some(F64),
             src,
+            needed: vec![],
         }
     }
 }

@@ -1,5 +1,9 @@
 #[macro_use] pub mod descriptors;
 
+pub trait SC: Into<String>+Clone {}
+impl SC for String {}
+impl SC for &'static str {}
+
 pub mod handler;
 pub use handler::Handler;
 

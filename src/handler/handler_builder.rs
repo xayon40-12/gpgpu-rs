@@ -9,10 +9,10 @@ use crate::data_file::{DataFile,Format};
 pub struct HandlerBuilder<'a> {
     available_kernels: HashMap<&'static str,Kernel<'a>>,
     available_algorithms: HashMap<&'static str,Algorithm<'a>>,
-    available_functions: HashMap<&'static str,Function<'a,&'static str,&'static str>>,
+    available_functions: HashMap<String,Function<'a>>,
     kernels: HashMap<&'a str,(Kernel<'a>,&'a str)>,
     algorithms: HashMap<&'a str,(Callback,&'a str)>,
-    functions: HashMap<String,(Function<'a,String,String>,String)>,
+    functions: HashMap<String,(Function<'a>,String)>,
     buffers: Vec<(String,BufferConstructor)>,
     data: HashMap<&'a str, DataFile>,
 }
@@ -44,22 +44,22 @@ impl<'a> HandlerBuilder<'a> {
         hand
     }
 
-    pub fn create_function<S: Into<String>+Clone,T: Into<String>+Clone>(self, function: Function<'a,S,T>) -> Self {
+    pub fn create_function(self, function: Function<'a>) -> Self {
         let name = function.name.clone().into();
-        self.add_function(function.convert(), Some(name),None)
+        self.add_function(function, Some(name),None)
     }
 
     pub fn load_function(self, name: &str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function.convert(),None,None)
+        self.add_function(function,None,None)
     }
 
     pub fn load_function_named(self, name: &str, as_name: &'a str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function.convert(),Some(as_name.into()),None)
+        self.add_function(function,Some(as_name.into()),None)
     }
     
-    fn add_function(mut self, function: Function<'a,String,String>, as_name: Option<String>, from_alg: Option<&'a str>) -> Self{
+    fn add_function(mut self, function: Function<'a>, as_name: Option<String>, from_alg: Option<&'a str>) -> Self{
         let name = function.name.clone();
         if let Some(as_name) = as_name {
             if let Some((_,from)) = self.functions.get(&as_name) {

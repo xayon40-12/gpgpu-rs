@@ -3,7 +3,7 @@ use crate::descriptors::EmptyType::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Kernel<'a> { //TODO use one Into<String>+Clone for each &'a str
+pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub name: &'a str,
     pub args: Vec<KernelConstructor<'a>>,
     pub src: &'a str

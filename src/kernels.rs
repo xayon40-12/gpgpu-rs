@@ -1,12 +1,14 @@
 use crate::descriptors::KernelConstructor::{self,*};
 use crate::descriptors::EmptyType::*;
 use std::collections::HashMap;
+use crate::functions::Needed;
 
 #[derive(Clone)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub name: &'a str,
     pub args: Vec<KernelConstructor<'a>>,
-    pub src: &'a str
+    pub src: &'a str,
+    pub needed: Vec<Needed<'a>>,
 }
 
 macro_rules! random {
@@ -72,11 +74,12 @@ macro_rules! random {
 
 pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
     vec![
-// *************************************** RANDOM ***************************************
+        // *************************************** RANDOM ***************************************
         Kernel {
             name: "philox2x64_10",
             args: vec![Buffer("src",U64)],
-            src: random!(philox2x64_10)
+            src: random!(philox2x64_10),
+            needed: vec![],
         },
         Kernel {
             name: "philox2x64_10_unit",
@@ -84,7 +87,8 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             src: random!(philox2x64_10,"
                 for(uint i = 0;i<l;i++)
                     dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);
-            ")
+            "),
+            needed: vec![],
         },
         Kernel {
             name: "philox2x64_10_normal",
@@ -96,12 +100,14 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
                     dst[x*l+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
                     dst[x*l+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
                 }
-            ")
+            "),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x64_10",
             args: vec![Buffer("src",U64)],
-            src: random!(philox4x64_10)
+            src: random!(philox4x64_10),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x64_10_unit",
@@ -109,7 +115,8 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             src: random!(philox4x64_10,"
                 for(uint i = 0;i<l;i++)
                     dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);
-            ")
+            "),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x64_10_normal",
@@ -121,12 +128,14 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
                     dst[x*l+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
                     dst[x*l+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
                 }
-            ")
+            "),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x32_10",
             args: vec![Buffer("src",U32)],
-            src: random!(philox4x32_10)
+            src: random!(philox4x32_10),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x32_10_unit",
@@ -135,7 +144,8 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
                 const uint l2 = l/2;
                 for(uint i = 0;i<l2;i++)
                     dst[x*l2+i] = (double)(((((ulong)src[x*l+i*2])<<32)+src[x*l+i*2+1])>>11)/(1l << 53);
-            ")
+            "),
+            needed: vec![],
         },
         Kernel {
             name: "philox4x32_10_normal",
@@ -148,50 +158,59 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
                     dst[x*l2+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
                     dst[x*l2+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
                 }
-            ")
+            "),
+            needed: vec![],
         },
 
-// ******************************************************************************
+        // ******************************************************************************
 
         Kernel {
             name: "plus",
             args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]+b[x];"
+            src: "dst[x] = a[x]+b[x];",
+            needed: vec![],
         },
         Kernel {
             name: "minus",
             args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]-b[x];"
+            src: "dst[x] = a[x]-b[x];",
+            needed: vec![],
         },
         Kernel {
             name: "times",
             args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]*b[x];"
+            src: "dst[x] = a[x]*b[x];",
+            needed: vec![],
         },
         Kernel {
             name: "divides",
             args: vec![ConstBuffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
-            src: "dst[x] = a[x]/b[x];"
+            src: "dst[x] = a[x]/b[x];",
+            needed: vec![],
         },
         Kernel {
             name: "cplus",
             args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = src[x]+c;"
+            src: "dst[x] = src[x]+c;",
+            needed: vec![],
         },
         Kernel {
             name: "cminus",
             args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = src[x]-c;"
+            src: "dst[x] = src[x]-c;",
+            needed: vec![],
         },
         Kernel {
             name: "ctimes",
             args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = src[x]*c;"
+            src: "dst[x] = src[x]*c;",
+            needed: vec![],
         },
         Kernel {
             name: "cdivides",
             args: vec![ConstBuffer("src",F64),Param("c",F64),Buffer("dst",F64)],
-            src: "dst[x] = src[x]/c;"
+            src: "dst[x] = src[x]/c;",
+            needed: vec![],
         },
-    ].into_iter().map(|k| (k.name,k)).collect()
+        ].into_iter().map(|k| (k.name,k)).collect()
 }

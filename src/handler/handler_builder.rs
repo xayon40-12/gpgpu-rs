@@ -3,7 +3,7 @@ use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{self,Kernel};
 use crate::algorithms::{self,Algorithm,Needed,Callback};
-use crate::functions::{self,Function};
+use crate::functions::{self,Function,Needed as FNeeded};
 use crate::data_file::{DataFile,Format};
 
 pub struct HandlerBuilder<'a> {
@@ -59,11 +59,14 @@ impl<'a> HandlerBuilder<'a> {
         self.add_function(function,Some(as_name.into()),None)
     }
     
-    fn add_function(mut self, function: Function<'a>, as_name: Option<String>, from_alg: Option<&'a str>) -> Self{
+    fn add_function(mut self, mut function: Function<'a>, as_name: Option<String>, from: Option<String>) -> Self{
         let name = function.name.clone();
+        let needed = function.needed;
+        function.needed = vec![];
+
         if let Some(as_name) = as_name {
             if let Some((_,from)) = self.functions.get(&as_name) {
-                panic!("Cannot add two functions with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
+                panic!("Cannot add two functions with the same name \"{}\", already added by {}.",as_name,from);
             } else {
                 self.functions.insert(as_name.into(),(function,"User".into()));
             }
@@ -74,8 +77,15 @@ impl<'a> HandlerBuilder<'a> {
                 return self;
             }
         } else {
-            self.functions.insert(name,(function,from_alg.unwrap_or("").into()));//TODO verify if empty string here causes problem
+            self.functions.insert(name.clone(),(function,from.unwrap_or("".into())));//TODO verify if empty string here causes problem
         }
+        for n in needed {
+            self = match n {
+                FNeeded::FuncName(name) => self.load_function(&name),
+                FNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("function \"{}\"",name))),
+            }
+        }
+
 
         self
     }
@@ -95,8 +105,10 @@ impl<'a> HandlerBuilder<'a> {
         self.add_kernel(kernel,Some(as_name),None)
     }
     
-    fn add_kernel(mut self, kernel: Kernel<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
+    fn add_kernel(mut self, mut kernel: Kernel<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
         let name = kernel.name;
+        let needed = kernel.needed;
+        kernel.needed = vec![];
         if let Some(as_name) = as_name {
             if let Some((_,from)) = self.kernels.get(as_name) {
                 panic!("Cannot add two kernels with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
@@ -111,6 +123,12 @@ impl<'a> HandlerBuilder<'a> {
             }
         } else {
             self.kernels.insert(name,(kernel,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+        }
+        for n in needed {
+            self = match n {
+                FNeeded::FuncName(name) => self.load_function(&name),
+                FNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("kernel \"{}\"",name))),
+            }
         }
 
         self

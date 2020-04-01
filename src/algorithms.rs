@@ -98,12 +98,14 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 NewKernel(Kernel {
                     name: "algo_sum_src",
                     args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*2+y*xs] = src[x*2+y*xs]+src[x*2+y*xs+1];"
+                    src: "dst[x*2+y*xs] = src[x*2+y*xs]+src[x*2+y*xs+1];",
+                    needed: vec![],
                 }),
                 NewKernel(Kernel {
                     name: "algo_sum",
                     args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = dst[x*s+y*xs]+dst[x*s+y*xs+s/2];"
+                    src: "dst[x*s+y*xs] = dst[x*s+y*xs]+dst[x*s+y*xs+s/2];",
+                    needed: vec![],
                 }),
             ]
         },
@@ -124,7 +126,8 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 NewKernel(Kernel {
                     name: "correlation",
                     args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
-                    src: "dst[x+y*x_size] = src[x+y*x_size]*src[x_size/2+y*x_size];"
+                    src: "dst[x+y*x_size] = src[x+y*x_size]*src[x_size/2+y*x_size];",
+                    needed: vec![],
                 })
             ]
         },
@@ -177,7 +180,8 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 NewKernel(Kernel {
                     name: "move_0_to_i",
                     args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
-                    src: "dst[y*n+i] = src[y*xs];"
+                    src: "dst[y*n+i] = src[y*xs];",
+                    needed: vec![],
                 }),
                 KernelName("times"),
                 KernelName("cdivides"),
@@ -243,9 +247,10 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                             2.285809498854937e-11,
                             1.1429047494274685e-11
                         };
-                    "
+                    ",
+                    needed: vec![],
                 }),
-            ]
+                ]
         },
-    ].into_iter().map(|a| (a.name,a)).collect()
+        ].into_iter().map(|a| (a.name,a)).collect()
 }

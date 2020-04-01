@@ -188,6 +188,90 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 AlgorithmName("sum"),
             ]
         },
+        // find min each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
+        Algorithm {
+            name: "min",
+            callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelArg>| {
+                bufs!(desc, "min", 2,
+                    src
+                    dst
+                );
+                let mut spacing = 2;
+                dim1or2!("min",dim,x d);
+                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
+                if x<=1 { return Ok(None); }
+                let l = len(spacing);
+                h.run_arg("algo_min_src", d(l), vec![BufArg(src,"src"),BufArg(dst,"dst").clone(),Param("xs",U64(x as u64))])?;
+                if spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run_arg("algo_min", d(l), vec![Param("s",U64(spacing as u64)),BufArg(dst,"dst"),Param("xs",U64(x as u64))])?;
+                }
+                while spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run_arg("algo_min", d(l), vec![Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
+                }
+                Ok(None)
+            }),
+            needed: vec![
+                NewKernel(Kernel {
+                    name: "algo_min_src",
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*2+y*xs] = (src[x*2+y*xs]<src[x*2+y*xs+1])?src[x*2+y*xs]:src[x*2+y*xs+1];",
+                    needed: vec![],
+                }),
+                NewKernel(Kernel {
+                    name: "algo_min",
+                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = (dst[x*s+y*xs]<dst[x*s+y*xs+s/2])?dst[x*s+y*xs]:dst[x*s+y*xs+s/2];",
+                    needed: vec![],
+                }),
+            ]
+        },
+        // find max each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
+        Algorithm {
+            name: "max",
+            callback: Rc::new(|h: &mut Handler, dim: Dim, desc: Vec<KernelArg>| {
+                bufs!(desc, "max", 2,
+                    src
+                    dst
+                );
+                let mut spacing = 2;
+                dim1or2!("max",dim,x d);
+                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
+                if x<=1 { return Ok(None); }
+                let l = len(spacing);
+                h.run_arg("algo_max_src", d(l), vec![BufArg(src,"src"),BufArg(dst,"dst").clone(),Param("xs",U64(x as u64))])?;
+                if spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run_arg("algo_max", d(l), vec![Param("s",U64(spacing as u64)),BufArg(dst,"dst"),Param("xs",U64(x as u64))])?;
+                }
+                while spacing<x {
+                    spacing *= 2;
+                    let l = len(spacing);
+                    h.run_arg("algo_max", d(l), vec![Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
+                }
+                Ok(None)
+            }),
+            needed: vec![
+                NewKernel(Kernel {
+                    name: "algo_max_src",
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*2+y*xs] = (src[x*2+y*xs]>src[x*2+y*xs+1])?src[x*2+y*xs]:src[x*2+y*xs+1];",
+                    needed: vec![],
+                }),
+                NewKernel(Kernel {
+                    name: "algo_max",
+                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = (dst[x*s+y*xs]>dst[x*s+y*xs+s/2])?dst[x*s+y*xs]:dst[x*s+y*xs+s/2];",
+                    needed: vec![],
+                }),
+            ]
+        },
         #[allow(unused)] //TODO remove when algorithm FFT is finished
         Algorithm {
             name: "FFT",

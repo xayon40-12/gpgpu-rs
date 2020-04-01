@@ -16,7 +16,8 @@ fn simple_main() -> gpgpu::Result<()> {
         .create_kernel(Kernel {
             name: "_main",
             src: &src,
-            args: vec![KC::Buffer("u",EmT::F64),KC::Param(&param_name,EmT::F32)]
+            args: vec![KC::Buffer("u",EmT::F64),KC::Param(&param_name,EmT::F32)],
+            needed: vec![],
         })
     .build()?;
 
@@ -75,6 +76,42 @@ fn sum() -> gpgpu::Result<()> {
 
     gpu.run_algorithm("sum",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|i,a| i+a)).collect::<Vec<_>>());
+
+    Ok(())
+}
+
+#[test]
+fn min() -> gpgpu::Result<()> {
+    let x = 8;
+    let y = 3;
+    let num = x*y;
+    let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Data(VecType::F64(v.clone())))
+        .add_buffer("dst", Len(F64(0.0), num))
+        .load_algorithm("min")
+        .build()?;
+
+    gpu.run_algorithm("min",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|i,&a| if i<a { i } else { a })).collect::<Vec<_>>());
+
+    Ok(())
+}
+
+#[test]
+fn max() -> gpgpu::Result<()> {
+    let x = 8;
+    let y = 3;
+    let num = x*y;
+    let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Data(VecType::F64(v.clone())))
+        .add_buffer("dst", Len(F64(0.0), num))
+        .load_algorithm("max")
+        .build()?;
+
+    gpu.run_algorithm("max",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|i,&a| if i>a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -166,9 +203,10 @@ fn data_file() -> gpgpu::Result<()> {
             src: "
                 double coord[] = {x,y,z};
                 u[x+x_size*(y+y_size*z)] = data(coord);
-            "
+            ",
+            needed: vec![],
         })
-        .build()?;
+    .build()?;
 
     gpu.run_arg("kern",Dim::D3(x,y,z),vec![Buffer("u")])?;
 
@@ -195,7 +233,8 @@ fn function_test() -> gpgpu::Result<()> {
         .create_kernel(Kernel {
             name: "_main",
             src: "swap(&u[x*2],&u[x*2+1]);",
-            args: vec![KC::Buffer("u",EmT::F64)]
+            args: vec![KC::Buffer("u",EmT::F64)],
+            needed: vec![],
         })
     .build()?;
 

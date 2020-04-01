@@ -12,10 +12,10 @@ Global:
 - [x] kernels  
 - [x] algorithms  
 - [x] functions  
-- [x] file loading (CPU)
-- [x] file loading (GPU) max elements: 8192
-- [ ] huge file loading (GPU)
-- [ ] file loading interpolation
+- [x] file loading (CPU)  
+- [x] file loading (GPU) max elements: 8192  
+- [ ] huge file loading (GPU)  
+- [ ] file loading interpolation  
 
 Kernels:  
 - [x] component wise operators buffer/buffer  
@@ -26,11 +26,10 @@ Kernels:
 
 Algorithms:  
 - [x] sum  
-- [ ] min/max  
-- [x] moments
-- [ ] cumulants  
+- [x] min/max  
+- [x] moments  
+- [x] cumulants  
 
 Random number generation:  
 - [x] philox 4x32,2x64,4x64  
 - [x] uniform and normal distribution  
-- [ ] others  

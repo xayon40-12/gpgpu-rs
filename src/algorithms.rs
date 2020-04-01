@@ -1,13 +1,13 @@
 use crate::{Handler,kernels::Kernel};
 use crate::Dim::{self,*};
 use crate::descriptors::KernelArg::{self,*};
-use crate::descriptors::Type::*;
+use crate::descriptors::{Type::*,VecType};
 use std::collections::HashMap;
 use std::rc::Rc;
 use crate::descriptors::KernelConstructor as KC;
 use crate::descriptors::EmptyType as EmT;
 
-pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelArg>) -> crate::Result<()>)>;
+pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, Vec<KernelArg>) -> crate::Result<Option<Vec<VecType>>>)>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> { //TODO use one Into<String>+Clone for each &'a str
@@ -79,7 +79,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 let mut spacing = 2;
                 dim1or2!("sum",dim,x d);
                 let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                if x<=1 { return Ok(()); }
+                if x<=1 { return Ok(None); }
                 let l = len(spacing);
                 h.run_arg("algo_sum_src", d(l), vec![BufArg(src,"src"),BufArg(dst,"dst").clone(),Param("xs",U64(x as u64))])?;
                 if spacing<x {
@@ -92,7 +92,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     let l = len(spacing);
                     h.run_arg("algo_sum", d(l), vec![Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
                 }
-                Ok(())
+                Ok(None)
             }),
             needed: vec![
                 NewKernel(Kernel {
@@ -118,7 +118,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 );
                 dim1or2!("correlation",dim,x d);
                 h.run_arg("correlation", d(x), vec![BufArg(src,"src"),BufArg(dst,"dst")])?;
-                Ok(())
+                Ok(None)
             }),
             needed: vec![
                 NewKernel(Kernel {
@@ -171,7 +171,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 }
                 h.run_arg("cdivides",D1(l as _),vec![BufArg(dst,"src"),Param("c",F64(x as f64)),BufArg(dst,"dst")])?;
 
-                Ok(())
+                Ok(None)
             }),
             needed: vec![
                 NewKernel(Kernel {
@@ -194,7 +194,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     dst
                 );
 
-                Ok(())
+                Ok(None)
             }),
             needed: vec![
                 NewKernel(Kernel {

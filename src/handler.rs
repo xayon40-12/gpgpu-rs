@@ -5,7 +5,7 @@ pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
 
 use crate::dim::Dim;
-use crate::descriptors::{KernelArg,BufType,Type};
+use crate::descriptors::{KernelArg,BufType,Type,VecType};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
 
@@ -96,7 +96,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> crate::Result<()> {
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> crate::Result<Option<Vec<VecType>>> {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,desc)
     }
 }

@@ -291,9 +291,9 @@ impl<'a> HandlerBuilder<'a> {
         })
     }
 
-    pub fn load_data(mut self, name: &'a str, data: Format<'a>) -> Self {
+    pub fn load_data(mut self, name: &'a str, data: Format<'a>, interpolated: bool) -> Self {
         let data = DataFile::parse(data);
-        self = self.create_function(data.to_function(name));
+        self = self.create_function(if interpolated { data.to_function_interpolated(name) } else { data.to_function(name) });
         self.data.insert(name,data);
         self
     }

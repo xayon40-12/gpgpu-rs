@@ -75,7 +75,7 @@ fn sum() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("sum",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|i,a| i+a)).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -93,7 +93,7 @@ fn min() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("min",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|i,&a| if i<a { i } else { a })).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|a,&i| if i<a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -111,7 +111,7 @@ fn max() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("max",Dim::D2(x,y),vec![Buffer("src"),Buffer("dst")])?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|i,&a| if i>a { i } else { a })).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|a,&i| if i>a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -195,7 +195,7 @@ fn data_file() -> gpgpu::Result<()> {
     }
     let data = DataFile::parse(Format::Column(&file));
     let mut gpu = Handler::builder()?
-        .load_data("data",Format::Column(&file))
+        .load_data("data",Format::Column(&file),false)
         .add_buffer("u", Len(F64(0.0),x*y*z))
         .create_kernel(Kernel {
             name: "kern",
@@ -219,6 +219,66 @@ fn data_file() -> gpgpu::Result<()> {
                 assert_eq!(id as f64,gpudata[id]);
             }
         }
+    }
+
+    Ok(())
+}
+
+#[test]
+fn data_file_interpolated() -> gpgpu::Result<()> {
+    use gpgpu::data_file::{DataFile,Format};
+
+    let mut file = String::new();
+    let (x,y,z) = (2,2,2);
+    for i in 0..=x {
+        for j in 0..=y {
+            for k in 0..=z {
+                file += &format!("{} {} {} {}\n",i,j,k,i+j+k);
+            }
+        }
+    }
+
+    let data = DataFile::parse(Format::Column(&file));
+
+    let t = 3;
+    let (x,y,z) = (x*t,y*t,z*t);
+    let mut gpu = Handler::builder()?
+        .load_data("data",Format::Column(&file),true)
+        .add_buffer("u", Len(F64(0.0),x*y*z))
+        .create_kernel(Kernel {
+            name: "kern",
+            args: vec![KC::Buffer("u",EmT::F64)],
+            src: &format!("
+                double t = {};
+                double coord[] = {{x/t,y/t,z/t}};
+                u[x+x_size*(y+y_size*z)] = data(coord);
+            ",t),
+            needed: vec![],
+        })
+    .build()?;
+
+    gpu.run_arg("kern",Dim::D3(x,y,z),vec![Buffer("u")])?;
+
+    let gpudata = gpu.get::<f64>("u")?;
+
+    for i in 0..x {
+        for j in 0..y {
+            for k in 0..z {
+                let l = i as f64/t as f64;
+                let m = j as f64/t as f64;
+                let n = k as f64/t as f64;
+                let id = l+m+n;
+                assert_eq!(
+                    format!("{:.10}",id) ,
+                    format!("{:.10}",data.get_interpolated(&[l,m,n]))
+                );
+                assert_eq!(
+                    format!("{:.10}",id) ,
+                    format!("{:.10}",gpudata[i+x*(j+y*k)])
+                );
+            }
+        }
+        println!("");
     }
 
     Ok(())

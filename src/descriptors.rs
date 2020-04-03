@@ -27,6 +27,7 @@ pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
 }
 
 use std::any::{Any,type_name};
+use ocl::prm::*;
 
 macro_rules! impl_types {
     ($name:ident, $($case:ident|$case_t:ident|$case_ocl:literal) +) => {
@@ -126,11 +127,36 @@ macro_rules! gen_types {
     };
 }
 
+
 gen_types!(BufType Type VecType EmptyType,
     F64|f64|"double"
     F32|f32|"float"
-    U64|u64|"unsigned long"
+    U64|u64|"ulong"
     I64|i64|"long"
-    U32|u32|"unsigned int"
+    U32|u32|"uint"
     I32|i32|"int"
+    U16|u16|"ushort"
+    I16|i16|"short"
+    U8 |u8 |"uchar"
+    I8 |i8 |"char"
+    F64_2|Double2|"double2"
+    F32_2|Float2 |"float2"
+    U64_2|Ulong2 |"ulong2"
+    I64_2|Long2  |"long2"
+    U32_2|Uint2  |"uint2"
+    I32_2|Int2   |"int2"
+    U16_2|Ushort2|"ushort2"
+    I16_2|Short2 |"short2"
+    U8_2 |Uchar2 |"uchar2"
+    I8_2 |Char2  |"char2"
+    F64_4|Double4|"double4"
+    F32_4|Float4 |"float4"
+    U64_4|Ulong4 |"ulong4"
+    I64_4|Long4  |"long4"
+    U32_4|Uint4  |"uint4"
+    I32_4|Int4   |"int4"
+    U16_4|Ushort4|"ushort4"
+    I16_4|Short4 |"short4"
+    U8_4 |Uchar4 |"uchar4"
+    I8_4 |Char4  |"char4"
 );

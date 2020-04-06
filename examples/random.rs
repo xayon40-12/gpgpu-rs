@@ -16,9 +16,9 @@ fn main() -> gpgpu::Result<()> {
         .load_algorithm("sum")
         .build()?;
 
-    gpu.set_arg("noise",vec![Buffer("src"),BufArg("num","dst")])?;
-    gpu.set_arg("noise4",vec![Buffer("src"),BufArg("num","dst")])?;
-    gpu.set_arg("noise32",vec![Buffer("src"),BufArg("num","dst")])?;
+    gpu.set_arg("noise",&[Buffer("src"),BufArg("num","dst")])?;
+    gpu.set_arg("noise4",&[Buffer("src"),BufArg("num","dst")])?;
+    gpu.set_arg("noise32",&[Buffer("src"),BufArg("num","dst")])?;
 
     let mut s;
 
@@ -29,7 +29,7 @@ fn main() -> gpgpu::Result<()> {
     s = 0.0;
     for _ in 0..n {
         gpu.run("noise",Dim::D1(len/2))?;
-        gpu.run_algorithm("sum",Dim::D1(len),vec![BufArg("num","src"),BufArg("num","dst")])?;
+        gpu.run_algorithm("sum",Dim::D1(len),&["num","num"],None)?;
         s += gpu.get_first::<f64>("num")?/len as f64;
     }
     println!("10^{}", (s/n as f64).abs().ln()/10f64.ln());
@@ -40,7 +40,7 @@ fn main() -> gpgpu::Result<()> {
     s = 0.0;
     for _ in 0..n {
         gpu.run("noise4",Dim::D1(len/4))?;
-        gpu.run_algorithm("sum",Dim::D1(len),vec![BufArg("num","src"),BufArg("num","dst")])?;
+        gpu.run_algorithm("sum",Dim::D1(len),&["num","num"],None)?;
         s += gpu.get_first::<f64>("num")?/len as f64;
     }
     println!("10^{}", (s/n as f64).abs().ln()/10f64.ln());
@@ -51,7 +51,7 @@ fn main() -> gpgpu::Result<()> {
     s = 0.0;
     for _ in 0..n {
         gpu.run("noise32",Dim::D1(len/2))?;
-        gpu.run_algorithm("sum",Dim::D1(len),vec![BufArg("num","src"),BufArg("num","dst")])?;
+        gpu.run_algorithm("sum",Dim::D1(len),&["num","num"],None)?;
         s += gpu.get_first::<f64>("num")?/len as f64;
     }
     println!("10^{}", (s/n as f64).abs().ln()/10f64.ln());

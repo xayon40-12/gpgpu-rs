@@ -9,7 +9,7 @@ use crate::descriptors::{KernelArg,BufType,Type,VecType};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
 
-use std::any::type_name;
+use std::any::{type_name,Any};
 
 #[allow(dead_code)]
 pub struct Handler {
@@ -57,11 +57,11 @@ impl Handler {
         Ok(val[0])
     }
 
-    fn _set_arg(&self, name: &str, desc: Vec<KernelArg>, kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
+    fn _set_arg(&self, name: &str, desc: &[KernelArg], kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
         for d in desc {
             match d {
                 KernelArg::Param(n,v) =>
-                    iner_each!(v,Type,v,kernel.0.set_arg(*kernel.1.get(n).expect(&format!("Param \"{}\" not present in kernel \"{}\"",n,name)),v)),
+                    iner_each!(v,Type,v,kernel.0.set_arg(*kernel.1.get(*n).expect(&format!("Param \"{}\" not present in kernel \"{}\"",n,name)),v)),
                 KernelArg::Buffer(n) =>
                     self.set_kernel_arg_buf(name,kernel,n,n),
                 KernelArg::BufArg(n,m) =>
@@ -71,7 +71,7 @@ impl Handler {
         Ok(())
     }
 
-    pub fn set_arg(&mut self, name: &str, desc: Vec<KernelArg>) -> crate::Result<()> {
+    pub fn set_arg(&mut self, name: &str, desc: &[KernelArg]) -> crate::Result<()> {
         let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
         self._set_arg(name,desc,kernel)
     }
@@ -87,7 +87,7 @@ impl Handler {
         }
     }
 
-    pub fn run_arg(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> ocl::Result<()> {
+    pub fn run_arg(&mut self, name: &str, dim: Dim, desc: &[KernelArg]) -> ocl::Result<()> {
         let kernel = &self.kernels.get(name).expect(&format!("Kernel \"{}\" not found",name));
         self._set_arg(name,desc,kernel)?;
 
@@ -96,7 +96,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, desc: Vec<KernelArg>) -> crate::Result<Option<Vec<VecType>>> {
-        (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,desc)
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>> {
+        (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,bufs,other_args)
     }
 }

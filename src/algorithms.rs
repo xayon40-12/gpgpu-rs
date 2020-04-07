@@ -72,37 +72,34 @@ macro_rules! callback_gen {
     ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
         Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: Option<&dyn Any>| $body)
     };
-}
-
-
-pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
-    vec![
-        // sum each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
-        // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "sum",
-            callback: callback_gen!(h,dim,dirs,bufs,_, {
+    (simple $name:literal) => {
+        callback_gen!(iner a $name);
+    };
+    (log $name:literal) => {
+        callback_gen!(iner a|b $name);
+    };
+    (iner $($type:meta)|+ $name:literal) => {
+        Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
                 bufs!(bufs, "sum", 2,
                     src
                     dst
                 );
-                let mut spacing = 2;
                 let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
                 let (d, dims): (Box<dyn Fn(usize, DimDir) -> Dim>, _) = match dim {
                     D1(x) => {
-                        if x<=1 { panic!("Each given dim in algorithm \"sum\" must be strictly greater than 1, given (x: {})", x); }
+                        if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
                         (Box::new(move |s,dir| match dir {
                             X => D1(len(s,x)),
-                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"sum\""),
+                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\""),
                         }),
                         vec![(x,X)])
                     },
                     D2(x,y) => {
-                        if x<=1 || y<=1 { panic!("Each given dim in algorithm \"sum\" must be strictly greater than 1, given (x: {}, y: {})", x, y); }
+                        if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
                         (Box::new(move |s,dir| match dir {
                             X => D2(len(s,x),y),
                             Y => D2(x,len(s,y)),
-                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"sum\""),
+                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\"",dir,dim,$name),
                         }),
                         dirs.into_iter().map(|dir| match dir {
                             X => (x,X),
@@ -112,30 +109,67 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     },
                     _ => panic!("not")
                 };
+                #[allow(unused)]
                 for (x,dir) in dims {
-                    h.run_arg("algo_sum_src", d(spacing,dir), &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                    if spacing<x {
-                        spacing *= 2;
-                        h.run_arg("algo_sum", d(spacing,dir), &[Param("s",U64(spacing as u64)),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                    }
-                    while spacing<x {
-                        spacing *= 2;
-                        h.run_arg("algo_sum", d(spacing,dir), &[Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
-                    }
+                    callback_gen!($($type)|+ $name, h, d, dir, src, dst, x);
                 }
                 Ok(None)
-            }),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_sum_src",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*2+y*xs] = src[x*2+y*xs]+src[x*2+y*xs+1];",
-                    needed: vec![],
-                }),
+            })
+    };
+    ($a:meta $name:literal, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident) => {
+        $h.run_arg(concat!("algo_",$name), $d(1,$dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst")])?;
+    };
+    ($a:meta|$b:meta $name:literal, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident) => {
+        let mut spacing = 2;
+        $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",U64(spacing as u64)),BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("xs",U64($x as u64))])?;
+        $h.set_arg(concat!("algo_",$name), &[BufArg(&$dst,"src")])?;
+        while spacing<$x {
+            spacing *= 2;
+            $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",U64(spacing as u64))])?;
+        }
+    };
+}
+
+pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
+    vec![
+        // sum each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
+        Algorithm {
+            name: "sum",
+            callback: callback_gen!(log "sum"),
+            needed: vec![//TODO add other direction algorithms
                 NewKernel(Kernel {
                     name: "algo_sum",
-                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = dst[x*s+y*xs]+dst[x*s+y*xs+s/2];",
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = src[x*s+y*xs]+src[x*s+y*xs+s/2];",
+                    needed: vec![],
+                }),
+            ]
+        },
+        // find min each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
+        Algorithm {
+            name: "min",
+            callback: callback_gen!(log "min"),
+            needed: vec![
+                NewKernel(Kernel {
+                    name: "algo_min",
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = (src[x*s+y*xs]<src[x*s+y*xs+s/2])?src[x*s+y*xs]:src[x*s+y*xs+s/2];",
+                    needed: vec![],
+                }),
+            ]
+        },
+        // find max each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        // size x (where x and y are the first and second dimensions).
+        Algorithm {
+            name: "max",
+            callback: callback_gen!(log "max"),
+            needed: vec![
+                NewKernel(Kernel {
+                    name: "algo_max",
+                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
+                    src: "dst[x*s+y*xs] = (src[x*s+y*xs]>src[x*s+y*xs+s/2])?src[x*s+y*xs]:src[x*s+y*xs+s/2];",
                     needed: vec![],
                 }),
             ]
@@ -144,18 +178,10 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "correlation",
-            callback: callback_gen!(h,dim,_,bufs,_, {
-                bufs!(bufs, "correlation", 2,
-                    src
-                    dst
-                );
-                dim1or2!("correlation",dim,x d);
-                h.run_arg("correlation", d(x), &[BufArg(&src,"src"),BufArg(&dst,"dst")])?;
-                Ok(None)
-            }),
+            callback: callback_gen!(simple "correlation"),
             needed: vec![
                 NewKernel(Kernel {
-                    name: "correlation",
+                    name: "algo_correlation",
                     args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
                     src: "dst[x+y*x_size] = src[x+y*x_size]*src[x_size/2+y*x_size];",
                     needed: vec![],
@@ -214,90 +240,6 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 KernelName("times"),
                 KernelName("cdivides"),
                 AlgorithmName("sum"),
-            ]
-        },
-        // find min each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
-        // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "min",
-            callback: callback_gen!(h,dim,_,bufs,_, {
-                bufs!(bufs, "min", 2,
-                    src
-                    dst
-                );
-                let mut spacing = 2;
-                dim1or2!("min",dim,x d);
-                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                if x<=1 { return Ok(None); }
-                let l = len(spacing);
-                h.run_arg("algo_min_src", d(l), &[BufArg(&src,"src"),BufArg(&dst,"dst").clone(),Param("xs",U64(x as u64))])?;
-                if spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_min", d(l), &[Param("s",U64(spacing as u64)),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                }
-                while spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_min", d(l), &[Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
-                }
-                Ok(None)
-            }),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_min_src",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*2+y*xs] = (src[x*2+y*xs]<src[x*2+y*xs+1])?src[x*2+y*xs]:src[x*2+y*xs+1];",
-                    needed: vec![],
-                }),
-                NewKernel(Kernel {
-                    name: "algo_min",
-                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = (dst[x*s+y*xs]<dst[x*s+y*xs+s/2])?dst[x*s+y*xs]:dst[x*s+y*xs+s/2];",
-                    needed: vec![],
-                }),
-            ]
-        },
-        // find max each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
-        // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "max",
-            callback: callback_gen!(h,dim,_,bufs,_, {
-                bufs!(bufs, "max", 2,
-                    src
-                    dst
-                );
-                let mut spacing = 2;
-                dim1or2!("max",dim,x d);
-                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                if x<=1 { return Ok(None); }
-                let l = len(spacing);
-                h.run_arg("algo_max_src", d(l), &[BufArg(&src,"src"),BufArg(&dst,"dst").clone(),Param("xs",U64(x as u64))])?;
-                if spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_max", d(l), &[Param("s",U64(spacing as u64)),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                }
-                while spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_max", d(l), &[Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
-                }
-                Ok(None)
-            }),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_max_src",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*2+y*xs] = (src[x*2+y*xs]>src[x*2+y*xs+1])?src[x*2+y*xs]:src[x*2+y*xs+1];",
-                    needed: vec![],
-                }),
-                NewKernel(Kernel {
-                    name: "algo_max",
-                    args: vec![KC::Param("s",EmT::U64),KC::Buffer("dst",EmT::F64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = (dst[x*s+y*xs]>dst[x*s+y*xs+s/2])?dst[x*s+y*xs]:dst[x*s+y*xs+s/2];",
-                    needed: vec![],
-                }),
             ]
         },
         #[allow(unused)] //TODO remove when algorithm FFT is finished

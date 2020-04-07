@@ -76,6 +76,8 @@ fn sum() -> gpgpu::Result<()> {
 
     gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>());
+    gpu.run_algorithm("sum",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?[0..x].iter().map(|f| *f).collect::<Vec<f64>>(), v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()));
 
     Ok(())
 }
@@ -92,7 +94,7 @@ fn min() -> gpgpu::Result<()> {
         .load_algorithm("min")
         .build()?;
 
-    gpu.run_algorithm("min",Dim::D2(x,y),&[],&["src","dst"],None)?;
+    gpu.run_algorithm("min",Dim::D2(x,y),&[X],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|a,&i| if i<a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
@@ -110,7 +112,7 @@ fn max() -> gpgpu::Result<()> {
         .load_algorithm("max")
         .build()?;
 
-    gpu.run_algorithm("max",Dim::D2(x,y),&[],&["src","dst"],None)?;
+    gpu.run_algorithm("max",Dim::D2(x,y),&[X],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|a,&i| if i>a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
@@ -122,13 +124,15 @@ fn correlation() -> gpgpu::Result<()> {
     let y = 3;
     let num = x*y;
     let mut gpu = Handler::builder()?
-        .add_buffer("src", Data(VecType::F64((0..num).map(|i| (i%x) as f64).collect())))
+        .add_buffer("src", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
         .add_buffer("dst", Len(F64(0.0), num))
         .load_algorithm("correlation")
         .build()?;
 
-    gpu.run_algorithm("correlation",Dim::D1(num),&[],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| (i%x) as f64 * (x/2) as f64).collect::<Vec<_>>());
+    gpu.run_algorithm("correlation",Dim::D2(x,y),&[X],&["src","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i/x)*x+x/2) as f64).collect::<Vec<_>>());
+    gpu.run_algorithm("correlation",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i%x)+x) as f64).collect::<Vec<_>>());
 
     Ok(())
 }

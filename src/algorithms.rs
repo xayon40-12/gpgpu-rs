@@ -7,9 +7,10 @@ use std::rc::Rc;
 use crate::descriptors::KernelConstructor as KC;
 use crate::descriptors::EmptyType as EmT;
 use std::any::Any;
+use crate::DimDir::{*,self};
 
-//Fn(handler: &mut Handler, dim: Dim, buf_names: Vec<String>, other_args: Option<&dyn Any>)
-pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, &[&str], Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>>)>;
+//Fn(handler: &mut Handler, dim: Dim, dim_dir: &[DimDir], buf_names: Vec<String>, other_args: Option<&dyn Any>)
+pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>>)>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> { //TODO use one SC for each &'a str
@@ -68,10 +69,11 @@ macro_rules! dim1or2 {
 }
 
 macro_rules! callback_gen {
-    ($h:ident, $dim:ident, $bufs:ident, $other:pat, $body:tt) => {
-        Rc::new(|$h: &mut Handler, $dim: Dim, $bufs: &[&str], $other: Option<&dyn Any>| $body)
+    ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
+        Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: Option<&dyn Any>| $body)
     };
 }
+
 
 pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
     vec![
@@ -79,26 +81,47 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "sum",
-            callback: callback_gen!(h,dim,bufs,_, {
+            callback: callback_gen!(h,dim,dirs,bufs,_, {
                 bufs!(bufs, "sum", 2,
                     src
                     dst
                 );
                 let mut spacing = 2;
-                dim1or2!("sum",dim,x d);
-                let len = |spacing| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                if x<=1 { return Ok(None); }
-                let l = len(spacing);
-                h.run_arg("algo_sum_src", d(l), &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                if spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_sum", d(l), &[Param("s",U64(spacing as u64)),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
-                }
-                while spacing<x {
-                    spacing *= 2;
-                    let l = len(spacing);
-                    h.run_arg("algo_sum", d(l), &[Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
+                let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
+                let (d, dims): (Box<dyn Fn(usize, DimDir) -> Dim>, _) = match dim {
+                    D1(x) => {
+                        if x<=1 { panic!("Each given dim in algorithm \"sum\" must be strictly greater than 1, given (x: {})", x); }
+                        (Box::new(move |s,dir| match dir {
+                            X => D1(len(s,x)),
+                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"sum\""),
+                        }),
+                        vec![(x,X)])
+                    },
+                    D2(x,y) => {
+                        if x<=1 || y<=1 { panic!("Each given dim in algorithm \"sum\" must be strictly greater than 1, given (x: {}, y: {})", x, y); }
+                        (Box::new(move |s,dir| match dir {
+                            X => D2(len(s,x),y),
+                            Y => D2(x,len(s,y)),
+                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"sum\""),
+                        }),
+                        dirs.into_iter().map(|dir| match dir {
+                            X => (x,X),
+                            Y => (y,Y),
+                            _ => panic!(),
+                        }).collect())
+                    },
+                    _ => panic!("not")
+                };
+                for (x,dir) in dims {
+                    h.run_arg("algo_sum_src", d(spacing,dir), &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
+                    if spacing<x {
+                        spacing *= 2;
+                        h.run_arg("algo_sum", d(spacing,dir), &[Param("s",U64(spacing as u64)),BufArg(&dst,"dst"),Param("xs",U64(x as u64))])?;
+                    }
+                    while spacing<x {
+                        spacing *= 2;
+                        h.run_arg("algo_sum", d(spacing,dir), &[Param("s",U64(spacing as u64)),Param("xs",U64(x as u64))])?;
+                    }
                 }
                 Ok(None)
             }),
@@ -121,7 +144,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "correlation",
-            callback: callback_gen!(h,dim,bufs,_, {
+            callback: callback_gen!(h,dim,_,bufs,_, {
                 bufs!(bufs, "correlation", 2,
                     src
                     dst
@@ -143,7 +166,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "moments",
-            callback: callback_gen!(h,dim,bufs,param, {
+            callback: callback_gen!(h,dim,dirs,bufs,param, {
                 bufs!(bufs, "moments", 4..5,
                     src
                     tmp
@@ -163,18 +186,18 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                     _ => panic!("Dimension should be either D1 or D2 for algorithm \"moments\"")
                 };
 
-                h.run_algorithm("sum",dim,&[src,sum],None)?;
+                h.run_algorithm("sum",dim,dirs,&[src,sum],None)?;
                 h.set_arg("move_0_to_i",&[BufArg(&sum,"src"),BufArg(&dst,"dst"),Param("i",U64(0)),Param("xs",U64(x as u64)),Param("n",U64(num as u64))])?;
                 h.run("move_0_to_i",D2(1,y))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
-                    h.run_algorithm("sum",dim,&[tmp,sum],None)?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum],None)?;
                     h.run_arg("move_0_to_i",D2(1,y),&[Param("i",U64(1))])?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l))?;
-                    h.run_algorithm("sum",dim,&[tmp,sum],None)?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum],None)?;
                     h.run_arg("move_0_to_i",D2(1,y),&[Param("i",U64(i as u64))])?;
                 }
                 h.run_arg("cdivides",D1(l as _),&[BufArg(&dst,"src"),Param("c",F64(x as f64)),BufArg(&dst,"dst")])?;
@@ -197,7 +220,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "min",
-            callback: callback_gen!(h,dim,bufs,_, {
+            callback: callback_gen!(h,dim,_,bufs,_, {
                 bufs!(bufs, "min", 2,
                     src
                     dst
@@ -239,7 +262,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // size x (where x and y are the first and second dimensions).
         Algorithm {
             name: "max",
-            callback: callback_gen!(h,dim,bufs,_, {
+            callback: callback_gen!(h,dim,_,bufs,_, {
                 bufs!(bufs, "max", 2,
                     src
                     dst
@@ -280,7 +303,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         #[allow(unused)] //TODO remove when algorithm FFT is finished
         Algorithm {
             name: "FFT",
-            callback: callback_gen!(h,dim,bufs,_, {
+            callback: callback_gen!(h,dim,_,bufs,_, {
                 bufs!(bufs, "FFT", 3,
                     src
                     tmp

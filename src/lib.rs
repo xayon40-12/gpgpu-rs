@@ -10,7 +10,7 @@ pub use handler::Handler;
 pub use descriptors::{KernelArg,BufferConstructor};
 
 pub mod dim;
-pub use dim::Dim;
+pub use dim::{Dim,DimDir};
 
 pub mod kernels;
 pub mod algorithms;

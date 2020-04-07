@@ -1,7 +1,7 @@
 use gpgpu::Handler;
 use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*,VecType,Type::*};
 use gpgpu::kernels::Kernel;
-use gpgpu::Dim;
+use gpgpu::{Dim,DimDir::*};
 use gpgpu::descriptors::KernelConstructor as KC;
 use gpgpu::descriptors::EmptyType as EmT;
 
@@ -74,7 +74,7 @@ fn sum() -> gpgpu::Result<()> {
         .load_algorithm("sum")
         .build()?;
 
-    gpu.run_algorithm("sum",Dim::D2(x,y),&["src","dst"],None)?;
+    gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>());
 
     Ok(())
@@ -92,7 +92,7 @@ fn min() -> gpgpu::Result<()> {
         .load_algorithm("min")
         .build()?;
 
-    gpu.run_algorithm("min",Dim::D2(x,y),&["src","dst"],None)?;
+    gpu.run_algorithm("min",Dim::D2(x,y),&[],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|a,&i| if i<a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
@@ -110,7 +110,7 @@ fn max() -> gpgpu::Result<()> {
         .load_algorithm("max")
         .build()?;
 
-    gpu.run_algorithm("max",Dim::D2(x,y),&["src","dst"],None)?;
+    gpu.run_algorithm("max",Dim::D2(x,y),&[],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|a,&i| if i>a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
@@ -127,7 +127,7 @@ fn correlation() -> gpgpu::Result<()> {
         .load_algorithm("correlation")
         .build()?;
 
-    gpu.run_algorithm("correlation",Dim::D1(num),&["src","dst"],None)?;
+    gpu.run_algorithm("correlation",Dim::D1(num),&[],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| (i%x) as f64 * (x/2) as f64).collect::<Vec<_>>());
 
     Ok(())
@@ -147,7 +147,7 @@ fn moments() -> gpgpu::Result<()> {
         .load_algorithm("moments")
         .build()?;
 
-    gpu.run_algorithm("moments",Dim::D2(x,y),&["src","tmp","sum","dst"],Some(&(n as u32)))?;
+    gpu.run_algorithm("moments",Dim::D2(x,y),&[X],&["src","tmp","sum","dst"],Some(&(n as u32)))?;
     assert_eq!(gpu.get::<f64>("dst")?, (0..num)
         .map(|i| {
             let i = (i%x) as f64;

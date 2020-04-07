@@ -4,7 +4,7 @@ use std::collections::{HashMap,BTreeMap};
 pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
 
-use crate::dim::Dim;
+use crate::dim::{Dim,DimDir};
 use crate::descriptors::{KernelArg,BufType,Type,VecType};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
@@ -96,7 +96,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>> {
-        (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,bufs,other_args)
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>> {
+        (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
 }

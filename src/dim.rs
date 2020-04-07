@@ -7,6 +7,13 @@ pub enum Dim {
     D3(usize,usize,usize)
 }
 
+#[derive(Debug,Clone,Copy)]
+pub enum DimDir {
+    X,
+    Y,
+    Z
+}
+
 impl From<Dim> for SpatialDims {
     fn from(dim: Dim) -> SpatialDims {
         match dim {

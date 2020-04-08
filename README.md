@@ -28,8 +28,8 @@ Algorithms:
 - [x] min/max  
 - [x] moments  
 - [x] cumulants  
+- [x] chose on which dimension to apply algorithms  
 - [ ] 1,2,3D Fourier transform  
-- [ ] chose on which dimension to apply algorithms
 
 
 Random number generation:  

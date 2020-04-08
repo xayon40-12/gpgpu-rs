@@ -70,17 +70,16 @@ fn sum() -> gpgpu::Result<()> {
     let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
     let mut gpu = Handler::builder()?
         .add_buffer("src", Data(VecType::F64(v.clone())))
-        .add_buffer("dst", Len(F64(0.0), num))
+        .add_buffer("tmp", Len(F64(0.0), num))
+        .add_buffer("dstx", Len(F64(0.0), y))
+        .add_buffer("dsty", Len(F64(0.0), x))
         .load_algorithm("sum")
         .build()?;
 
-    gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>(), "dim X");
-    gpu.run_algorithm("sum",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
-    for c in gpu.get::<f64>("dst")?.chunks(x) {
-        println!("{:?}", c);
-    }
-    assert_eq!(gpu.get::<f64>("dst")?[0..x].iter().map(|f| *f).collect::<Vec<f64>>(), v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()), "dim Y");
+    gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","tmp","dstx"],None)?;
+    assert_eq!(gpu.get::<f64>("dstx")?, v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>(), "dim X");
+    gpu.run_algorithm("sum",Dim::D2(x,y),&[Y],&["src","tmp","dsty"],None)?;
+    assert_eq!(gpu.get::<f64>("dsty")?, v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()), "dim Y");
 
     Ok(())
 }
@@ -93,12 +92,13 @@ fn min() -> gpgpu::Result<()> {
     let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
     let mut gpu = Handler::builder()?
         .add_buffer("src", Data(VecType::F64(v.clone())))
-        .add_buffer("dst", Len(F64(0.0), num))
+        .add_buffer("tmp", Len(F64(0.0), num))
+        .add_buffer("dst", Len(F64(0.0), y))
         .load_algorithm("min")
         .build()?;
 
-    gpu.run_algorithm("min",Dim::D2(x,y),&[X],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|a,&i| if i<a { i } else { a })).collect::<Vec<_>>());
+    gpu.run_algorithm("min",Dim::D2(x,y),&[X],&["src","tmp","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?, v.chunks(x).map(|b| b.iter().fold(std::f64::MAX,|a,&i| if i<a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -111,12 +111,13 @@ fn max() -> gpgpu::Result<()> {
     let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
     let mut gpu = Handler::builder()?
         .add_buffer("src", Data(VecType::F64(v.clone())))
-        .add_buffer("dst", Len(F64(0.0), num))
+        .add_buffer("tmp", Len(F64(0.0), num))
+        .add_buffer("dst", Len(F64(0.0), y))
         .load_algorithm("max")
         .build()?;
 
-    gpu.run_algorithm("max",Dim::D2(x,y),&[X],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|a,&i| if i>a { i } else { a })).collect::<Vec<_>>());
+    gpu.run_algorithm("max",Dim::D2(x,y),&[X],&["src","tmp","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?, v.chunks(x).map(|b| b.iter().fold(std::f64::MIN,|a,&i| if i>a { i } else { a })).collect::<Vec<_>>());
 
     Ok(())
 }
@@ -150,19 +151,30 @@ fn moments() -> gpgpu::Result<()> {
         .add_buffer("src", Data(VecType::F64((0..num).map(|i| (i%x) as f64).collect())))
         .add_buffer("tmp", Len(F64(0.0), num))
         .add_buffer("sum", Len(F64(0.0), num))
-        .add_buffer("dst", Len(F64(0.0), n*y))
+        .add_buffer("dstsum", Len(F64(0.0), num))
+        .add_buffer("dstx", Len(F64(0.0), n*y))
+        .add_buffer("dsty", Len(F64(0.0), n*x))
         .load_algorithm("moments")
         .build()?;
 
-    gpu.run_algorithm("moments",Dim::D2(x,y),&[X],&["src","tmp","sum","dst"],Some(&(n as u32)))?;
-    assert_eq!(gpu.get::<f64>("dst")?, (0..num)
+    let pow = (0..num)
         .map(|i| {
             let i = (i%x) as f64;
             (i,i*i,i*i*i,i*i*i*i)
         })
-        .collect::<Vec<_>>().chunks(x)
+        .collect::<Vec<_>>();
+
+    gpu.run_algorithm("moments",Dim::D2(x,y),&[X],&["src","tmp","sum","dstsum","dstx"],Some(&(n as u32)))?;
+    assert_eq!(gpu.get::<f64>("dstx")?, pow
+        .chunks(x)
         .map(|c| c.into_iter().fold([0.0,0.0,0.0,0.0],|[a,b,c,d],(e,f,g,h)| [a+e,b+f,c+g,d+h]).iter().map(|i| i/x as f64).collect::<Vec<f64>>())
         .flatten().collect::<Vec<f64>>()
+    );
+    gpu.run_algorithm("moments",Dim::D2(x,y),&[Y],&["src","tmp","sum","dstsum","dsty"],Some(&(n as u32)))?;
+    assert_eq!(gpu.get::<f64>("dsty")?, pow
+        .chunks(x)
+        .fold(vec![(0.0,0.0,0.0,0.0);x],|a,c| a.iter().enumerate().map(|(i,v)| (v.0+c[i].0,v.1+c[i].1,v.2+c[i].2,v.3+c[i].3)).collect())
+        .iter().map(|&(a,b,c,d)| vec![a,b,c,d]).flatten().map(|i| i/y as f64).collect::<Vec<_>>()
     );
 
     Ok(())

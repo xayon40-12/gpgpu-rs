@@ -76,10 +76,7 @@ macro_rules! algo_gen {
         Algorithm {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
-                bufs!(bufs, $name, 2,
-                    src
-                    dst
-                );
+                algo_gen!(init $($type)|+, bufs, $name, src tmp dst);
                 let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
                 let (d, dims, size): (Box<dyn Fn(usize, DimDir) -> Dim>, _, _) = match dim {
                     D1(x) => {
@@ -107,36 +104,55 @@ macro_rules! algo_gen {
                     },
                     _ => panic!("not")
                 };
-                algo_gen!(copy $($type)|+, $Tb, h, src, dst);
-                for (x,dir) in dims {
-                    algo_gen!(dim $($type)|+ $name, $Ep|$Ep_3|$Tp, h, d, dir, src, dst, x, size);
-                }
+                algo_gen!(doing $($type)|+ $name,$Eb|$Tb $Ep|$Ep_3|$Tp, h, d dims size, dirs, src tmp dst);
                 Ok(None)
             }),
-            needed: vec![
+            needed: algo_gen!(nedeed $($type)|+,
                 NewKernel(Kernel {
                     name: concat!("algo_",$name),
                     args: vec![KC::ConstBuffer("src",EmT::$Eb),KC::Buffer("dst",EmT::$Eb),KC::Param("s",EmT::$Ep),KC::Param("size",EmT::$Ep_3),KC::Param("dim",EmT::U8)],
                     src: algo_gen!(src $($type)|+ $src),
                     needed: vec![],
-                }),
-            ]
+                })
+            )
         }
     };
-    (copy $a:meta, $Tb:ident, $h:ident, $src:ident, $dst:ident) => {};
-    (copy $a:meta|$b:meta,$Tb:ident , $h:ident, $src:ident, $dst:ident) => {
-        $h.copy::<$Tb>($src,$dst)?;
+    (nedeed $a:meta, $kern:expr) => {
+        vec![$kern]
     };
-    (dim $a:meta $name:literal, $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident, $size:ident) => {
-        $h.run_arg(concat!("algo_",$name), $d(1,$dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("dim",U8($dir as u8))])?;
+    (nedeed $a:meta|$b:meta, $kern:expr) => {
+        vec![$kern,KernelName("move")]
     };
-    (dim $a:meta|$b:meta $name:literal, $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident, $size:ident) => {
-        let mut spacing = 2;
-        $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",$Ep(spacing as $Tp)),BufArg(&$dst,"src"),BufArg(&$dst,"dst"),Param("size",$Ep_3(($size.into()))),Param("dim",U8($dir as u8))])?;
-        while spacing<$x {
-            spacing *= 2;
-            $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",$Ep(spacing as $Tp))])?;
+    (init $a:meta, $bufs:ident, $name:literal, $src:ident $tmp:ident $dst:ident) => {
+        bufs!($bufs, $name, 2,
+            $src
+            $dst
+        );
+    };
+    (init $a:meta|$b:meta, $bufs:ident, $name:literal, $src:ident $tmp:ident $dst:ident) => {
+        bufs!($bufs, $name, 3,
+            $src
+            $tmp
+            $dst
+        );
+    };
+    (doing $a:meta $name:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident $dims:ident $size:ident, $dirs:ident, $src:ident $tmp:ident $dst:ident) => {
+        for (x,dir) in $dims {
+            $h.run_arg(concat!("algo_",$name), $d(1,dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("dim",U8(dir as u8))])?;
         }
+    };
+    (doing $a:meta|$b:meta $name:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident $dims:ident $size:ident, $dirs:ident, $src:ident $tmp:ident $dst:ident) => {
+        $h.copy::<$Tb>($src,$tmp)?;
+        for (x,dir) in $dims {
+            let mut spacing = 2;
+            $h.run_arg(concat!("algo_",$name), $d(spacing,dir), &[Param("s",$Ep(spacing as $Tp)),BufArg(&$tmp,"src"),BufArg(&$tmp,"dst"),Param("size",$Ep_3($size.into())),Param("dim",U8(dir as u8))])?;
+            while spacing<x {
+                spacing *= 2;
+                $h.run_arg(concat!("algo_",$name), $d(spacing,dir), &[Param("s",$Ep(spacing as $Tp))])?;
+            }
+        }
+        let dims = $dirs.iter().fold($size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
+        $h.run_arg("move",dims.into(),&[BufArg(&$tmp,"src"),BufArg(&$dst,"dst"),Param("size",$Ep_3($size.into())),Param("offset",U32(0))])?
     };
     (src $a:meta $src:literal) => {
         concat!("
@@ -179,10 +195,11 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         Algorithm {
             name: "moments",
             callback: callback_gen!(h,dim,dirs,bufs,param, {
-                bufs!(bufs, "moments", 4..5,
+                bufs!(bufs, "moments", 5..6,
                     src
                     tmp
                     sum
+                    dstsum
                     dst
                 );
                 let num: u32 = if let Some(p) = param {
@@ -192,39 +209,36 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
                 };
                 if num < 1 { panic!("There must be at least one moment calculated in \"moments\" algorithm."); }
 
-                let (x,y,l) = match dim {
-                    D1(x) => (x,1,x),
-                    D2(x,y) => (x,y,x*y),
-                    _ => panic!("Dimension should be either D1 or D2 for algorithm \"moments\"")
+                let (l,size) = match dim {
+                    D1(x) => (x,[x as u32,1,1]),
+                    D2(x,y) => (x*y,[x as u32,y as u32,1]),
+                    D3(x,y,z) => (x*y*z,[x as u32,y as u32,z as u32])
                 };
 
-                h.run_algorithm("sum",dim,dirs,&[src,sum],None)?;
-                h.set_arg("move_0_to_i",&[BufArg(&sum,"src"),BufArg(&dst,"dst"),Param("i",U64(0)),Param("xs",U64(x as u64)),Param("n",U64(num as u64))])?;
-                h.run("move_0_to_i",D2(1,y))?;
+                h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],None)?;
+                let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
+                let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
+                h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",U32_3([num,sumlen,1].into())),Param("offset",U32(0))])?;
+                h.run("smove",D2(1,sumlen as usize))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum],None)?;
-                    h.run_arg("move_0_to_i",D2(1,y),&[Param("i",U64(1))])?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
+                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(1))])?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l))?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum],None)?;
-                    h.run_arg("move_0_to_i",D2(1,y),&[Param("i",U64(i as u64))])?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
+                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(i as u32))])?;
                 }
-                h.run_arg("cdivides",D1(l as _),&[BufArg(&dst,"src"),Param("c",F64(x as f64)),BufArg(&dst,"dst")])?;
+                h.run_arg("cdivides",D1((num*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
 
                 Ok(None)
             }),
             needed: vec![
-                NewKernel(Kernel {
-                    name: "move_0_to_i",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("i",EmT::U64),KC::Param("xs",EmT::U64),KC::Param("n",EmT::U64)],
-                    src: "dst[y*n+i] = src[y*xs];",
-                    needed: vec![],
-                }),
                 KernelName("times"),
                 KernelName("cdivides"),
+                KernelName("smove"),
                 AlgorithmName("sum"),
             ]
         },

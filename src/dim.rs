@@ -35,3 +35,6 @@ impl From<[usize; 3]> for Dim {
         }
     }
 }
+
+impl From<[u32; 3]> for Dim { fn from(dim: [u32; 3]) -> Dim { [dim[0] as usize,dim[1] as usize,dim[2] as usize].into() } }
+impl From<[u64; 3]> for Dim { fn from(dim: [u64; 3]) -> Dim { [dim[0] as usize,dim[1] as usize,dim[2] as usize].into() } }

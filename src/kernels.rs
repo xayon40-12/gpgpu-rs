@@ -212,5 +212,17 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             src: "dst[x] = src[x]/c;",
             needed: vec![],
         },
+        Kernel {
+            name: "move",
+            args: vec![ConstBuffer("src",F64),Buffer("dst",F64),Param("size",U32_3),Param("offset",U32)],
+            src: "dst[x+x_size*(y+y_size*z) + offset] = src[x+size.x*(y+size.y*z)];",
+            needed: vec![],
+        },
+        Kernel {
+            name: "smove",
+            args: vec![ConstBuffer("src",F64),Buffer("dst",F64),Param("size",U32_3),Param("offset",U32)],
+            src: "dst[x+size.x*(y+size.y*z) + offset] = src[x+x_size*(y+y_size*z)];",
+            needed: vec![],
+        },
         ].into_iter().map(|k| (k.name,k)).collect()
 }

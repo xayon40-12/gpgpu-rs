@@ -58,41 +58,38 @@ macro_rules! bufs {
     };
 }
 
-macro_rules! dim1or2 {
-    ($alg:expr, $dim:ident, $x:ident $d:ident) => {
-        let ($x,$d): (usize,Box<dyn Fn(usize) -> Dim>) = match $dim {
-            D1(x) => (x,Box::new(|l| D1(l))),
-            D2(x,y) => (x,Box::new(move |l| D2(l,y))),
-            _ => panic!("Dimension for algorithm \"{}\" should be either D1 or D2.", $alg)
-        };
-    }
-}
-
 macro_rules! callback_gen {
     ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
         Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: Option<&dyn Any>| $body)
     };
-    (simple $name:literal) => {
-        callback_gen!(iner a $name);
+}
+
+macro_rules! algo_gen {
+    (center $name:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident|$Tp:ident, $src:literal) => {
+        algo_gen!(iner a $name, $src, $Eb|$Tb $Ep|$Ep_3|$Tp);
     };
-    (log $name:literal) => {
-        callback_gen!(iner a|b $name);
+    (log $name:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident|$Tp:ident, $src:literal) => {
+        algo_gen!(iner a|b $name, $src, $Eb|$Tb $Ep|$Ep_3|$Tp);
     };
-    (iner $($type:meta)|+ $name:literal) => {
-        Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
-                bufs!(bufs, "sum", 2,
+    (iner $($type:meta)|+ $name:literal, $src:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident|$Tp:ident) => {
+        #[allow(unused)]
+        Algorithm {
+            name: $name,
+            callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
+                bufs!(bufs, $name, 2,
                     src
                     dst
                 );
                 let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                let (d, dims): (Box<dyn Fn(usize, DimDir) -> Dim>, _) = match dim {
+                let (d, dims, size): (Box<dyn Fn(usize, DimDir) -> Dim>, _, _) = match dim {
                     D1(x) => {
                         if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
                         (Box::new(move |s,dir| match dir {
                             X => D1(len(s,x)),
                             _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\""),
                         }),
-                        vec![(x,X)])
+                        vec![(x,X)],
+                        [x as $Tp,1,1])
                     },
                     D2(x,y) => {
                         if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
@@ -105,89 +102,78 @@ macro_rules! callback_gen {
                             X => (x,X),
                             Y => (y,Y),
                             _ => panic!(),
-                        }).collect())
+                        }).collect(),
+                        [x as $Tp,y as $Tp,1])
                     },
                     _ => panic!("not")
                 };
-                #[allow(unused)]
+                algo_gen!(copy $($type)|+, $Tb, h, src, dst);
                 for (x,dir) in dims {
-                    callback_gen!($($type)|+ $name, h, d, dir, src, dst, x);
+                    algo_gen!(dim $($type)|+ $name, $Ep|$Ep_3|$Tp, h, d, dir, src, dst, x, size);
                 }
                 Ok(None)
-            })
-    };
-    ($a:meta $name:literal, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident) => {
-        $h.run_arg(concat!("algo_",$name), $d(1,$dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst")])?;
-    };
-    ($a:meta|$b:meta $name:literal, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident) => {
-        let mut spacing = 2;
-        $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",U64(spacing as u64)),BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("xs",U64($x as u64))])?;
-        $h.set_arg(concat!("algo_",$name), &[BufArg(&$dst,"src")])?;
-        while spacing<$x {
-            spacing *= 2;
-            $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",U64(spacing as u64))])?;
+            }),
+            needed: vec![
+                NewKernel(Kernel {
+                    name: concat!("algo_",$name),
+                    args: vec![KC::ConstBuffer("src",EmT::$Eb),KC::Buffer("dst",EmT::$Eb),KC::Param("s",EmT::$Ep),KC::Param("size",EmT::$Ep_3),KC::Param("dim",EmT::U8)],
+                    src: algo_gen!(src $($type)|+ $src),
+                    needed: vec![],
+                }),
+            ]
         }
     };
+    (copy $a:meta, $Tb:ident, $h:ident, $src:ident, $dst:ident) => {};
+    (copy $a:meta|$b:meta,$Tb:ident , $h:ident, $src:ident, $dst:ident) => {
+        $h.copy::<$Tb>($src,$dst)?;
+    };
+    (dim $a:meta $name:literal, $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident, $size:ident) => {
+        $h.run_arg(concat!("algo_",$name), $d(1,$dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("dim",U8($dir as u8))])?;
+    };
+    (dim $a:meta|$b:meta $name:literal, $Ep:ident|$Ep_3:ident|$Tp:ident, $h:ident, $d:ident, $dir:ident, $src:ident, $dst:ident, $x:ident, $size:ident) => {
+        let mut spacing = 2;
+        $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",$Ep(spacing as $Tp)),BufArg(&$dst,"src"),BufArg(&$dst,"dst"),Param("size",$Ep_3(($size.into()))),Param("dim",U8($dir as u8))])?;
+        while spacing<$x {
+            spacing *= 2;
+            $h.run_arg(concat!("algo_",$name), $d(spacing,$dir), &[Param("s",$Ep(spacing as $Tp))])?;
+        }
+    };
+    (src $a:meta $src:literal) => {
+        concat!("
+            y *= x_size;
+            z *= x_size*y_size;
+            long xp = ((long[3]){x_size/2,x,x})[dim];
+            long yp = ((long[3]){y,x_size*(y_size/2),y})[dim];
+            long zp = ((long[3]){z,z,x_size*y_size*(z_size/2)})[dim];
+        ",$src)
+    };
+    (src $a:meta|$b:meta $src:literal) => {
+        concat!("
+            x *= ((long[3]){s,1,1})[dim];
+            y *= size.x*((long[3]){1,s,1})[dim];
+            z *= size.x*size.y*((long[3]){1,1,s})[dim];
+            long xp = x+((long[3]){s/2,0,0})[dim];
+            long yp = y+((long[3]){0,size.x*s/2,0})[dim];
+            long zp = z+((long[3]){0,0,size.x*size.y*s/2})[dim];
+        ",$src)
+    };
+
 }
 
 pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
     vec![
         // sum each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
         // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "sum",
-            callback: callback_gen!(log "sum"),
-            needed: vec![//TODO add other direction algorithms
-                NewKernel(Kernel {
-                    name: "algo_sum",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = src[x*s+y*xs]+src[x*s+y*xs+s/2];",
-                    needed: vec![],
-                }),
-            ]
-        },
-        // find min each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
+        algo_gen!(log "sum",F64|f64 U32|U32_3|u32,"dst[x+y+z] = src[x+y+z]+src[xp+yp+zp];"),
+        // find min each elements. With D1 apply+z on whole buffer, with D2 apply+z on all y+z sub-buffers of
+        // size x (where x and y+z are the first and second dimensions).
+        algo_gen!(log "min",F64|f64 U32|U32_3|u32,"dst[x+y+z] = (src[x+y+z]<src[xp+yp+zp])?src[x+y+z]:src[xp+yp+zp];"),
+        // find max each elements. With D1 apply+z on whole buffer, with D2 apply+z on all y+z sub-buffers of
+        // size x (where x and y+z are the first and second dimensions).
+        algo_gen!(log "max",F64|f64 U32|U32_3|u32,"dst[x+y+z] = (src[x+y+z]>src[xp+yp+zp])?src[x+y+z]:src[xp+yp+zp];"),
+        // Compute correlation. With D1 apply+z on whole buffer, with D2 apply+z on all y+z sub-buffers of
         // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "min",
-            callback: callback_gen!(log "min"),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_min",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = (src[x*s+y*xs]<src[x*s+y*xs+s/2])?src[x*s+y*xs]:src[x*s+y*xs+s/2];",
-                    needed: vec![],
-                }),
-            ]
-        },
-        // find max each elements. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
-        // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "max",
-            callback: callback_gen!(log "max"),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_max",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64),KC::Param("s",EmT::U64),KC::Param("xs",EmT::U64)],
-                    src: "dst[x*s+y*xs] = (src[x*s+y*xs]>src[x*s+y*xs+s/2])?src[x*s+y*xs]:src[x*s+y*xs+s/2];",
-                    needed: vec![],
-                }),
-            ]
-        },
-        // Compute correlation. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
-        // size x (where x and y are the first and second dimensions).
-        Algorithm {
-            name: "correlation",
-            callback: callback_gen!(simple "correlation"),
-            needed: vec![
-                NewKernel(Kernel {
-                    name: "algo_correlation",
-                    args: vec![KC::ConstBuffer("src",EmT::F64),KC::Buffer("dst",EmT::F64)],
-                    src: "dst[x+y*x_size] = src[x+y*x_size]*src[x_size/2+y*x_size];",
-                    needed: vec![],
-                })
-            ]
-        },
+        algo_gen!(center "correlation",F64|f64 U32|U32_3|u32,"dst[x+y+z] = src[x+y+z]*src[xp+yp+zp];"),
         // Compute moments. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
         // size x (where x and y are the first and second dimensions).
         Algorithm {

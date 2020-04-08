@@ -36,6 +36,10 @@ macro_rules! impl_types {
                 iner_each!(self,$name,buf,buf as &dyn Any)
             }
 
+            pub fn iner<T: ocl::OclPrm>(&self) -> Option<&ocl::Buffer<T>> {
+                self.iner_any().downcast_ref::<ocl::Buffer<T>>()
+            }
+
             pub fn type_name(&self) -> &str {
                 match self {
                     $($name::$case(_) => type_name::<$case_t>(),)+
@@ -149,6 +153,16 @@ gen_types!(BufType Type VecType EmptyType,
     I16_2|Short2 |"short2"
     U8_2 |Uchar2 |"uchar2"
     I8_2 |Char2  |"char2"
+    F64_3|Double3|"double3"
+    F32_3|Float3 |"float3"
+    U64_3|Ulong3 |"ulong3"
+    I64_3|Long3  |"long3"
+    U32_3|Uint3  |"uint3"
+    I32_3|Int3   |"int3"
+    U16_3|Ushort3|"ushort3"
+    I16_3|Short3 |"short3"
+    U8_3 |Uchar3 |"uchar3"
+    I8_3 |Char3  |"char3"
     F64_4|Double4|"double4"
     F32_4|Float4 |"float4"
     U64_4|Ulong4 |"ulong4"

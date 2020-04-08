@@ -99,4 +99,12 @@ impl Handler {
     pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>> {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
+
+    pub fn copy<T: ocl::OclPrm>(&mut self, src: &str, dst: &str) -> crate::Result<()> {
+        let src = self.buffers.get(src).expect(&format!("Buffer \"{}\" not found",src))
+            .iner::<T>().expect(&format!("Wrong type for buffer \"{}\"",src));
+        let dst = self.buffers.get(dst).expect(&format!("Buffer \"{}\" not found",dst))
+            .iner::<T>().expect(&format!("Wrong type for buffer \"{}\"",dst));
+        src.copy(dst,None,None).enq()
+    }
 }

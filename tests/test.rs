@@ -75,9 +75,12 @@ fn sum() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?.chunks(x).map(|b| b[0]).collect::<Vec<_>>(), v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>(), "dim X");
     gpu.run_algorithm("sum",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?[0..x].iter().map(|f| *f).collect::<Vec<f64>>(), v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()));
+    for c in gpu.get::<f64>("dst")?.chunks(x) {
+        println!("{:?}", c);
+    }
+    assert_eq!(gpu.get::<f64>("dst")?[0..x].iter().map(|f| *f).collect::<Vec<f64>>(), v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()), "dim Y");
 
     Ok(())
 }
@@ -130,9 +133,9 @@ fn correlation() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("correlation",Dim::D2(x,y),&[X],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i/x)*x+x/2) as f64).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i/x)*x+x/2) as f64).collect::<Vec<_>>(),"dim X");
     gpu.run_algorithm("correlation",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
-    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i%x)+x) as f64).collect::<Vec<_>>());
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i%x)+x*(y/2)) as f64).collect::<Vec<_>>(),"dim Y");
 
     Ok(())
 }

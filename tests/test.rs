@@ -5,6 +5,8 @@ use gpgpu::{Dim,DimDir::*};
 use gpgpu::descriptors::KernelConstructor as KC;
 use gpgpu::descriptors::EmptyType as EmT;
 
+use ocl::prm::*;
+
 #[test]
 fn simple_main() -> gpgpu::Result<()> {
     let src = "u[x] = p+x_size*1000+x*100;".to_string();
@@ -141,6 +143,49 @@ fn correlation() -> gpgpu::Result<()> {
     Ok(())
 }
 
+fn ft(tab: &[Double2]) -> Vec<Double2> {
+    #[allow(non_snake_case)]
+    let N = tab.len();
+    (0..N).map(|k|
+        tab.iter().enumerate().fold([0.0,0.0].into(), |a: Double2,(i,v)| {
+            let x = -2.0*std::f64::consts::PI*k as f64*i as f64/N as f64;
+            let c = f64::cos(x);
+            let s = f64::sin(x);
+            [a[0]+c*v[0]-s*v[1],a[1]+s*v[0]+c*v[1]].into()
+        })
+    ).collect()
+}
+
+#[test]
+fn fft() -> gpgpu::Result<()> {
+    let x = 8;
+    let y = 4;
+    let num = x*y;
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Data(VecType::F64_2((0..num).map(|i| [i as f64,0.0].into()).collect())))
+        .add_buffer("tmp", Len(F64_2([0.0,0.0].into()), num))
+        .add_buffer("dst", Len(F64_2([0.0,0.0].into()), num))
+        .load_algorithm("FFT")
+        .build()?;
+
+    gpu.run_algorithm("FFT",Dim::D2(x,y),&[X],&["src","tmp","dst"],None)?;
+    assert_eq!(gpu.get::<Double2>("dst")?
+        .iter().fold(String::new(), |a,d| a+&format!("({:.10},{:.10}),",d[0],d[1]))
+        , (0..num).map(|i| [i as f64,0.0].into()).collect::<Vec<Double2>>()
+        .chunks(x).flat_map(|c| ft(c)).map(|d| [d[0]/x as f64,d[1]/x as f64].into())
+        .fold(String::new(), |a,d: Double2| a+&format!("({:.10},{:.10}),",d[0],d[1])),"dim X");
+
+    gpu.run_algorithm("FFT",Dim::D2(x,y),&[Y],&["src","tmp","dst"],None)?;
+    assert_eq!(gpu.get::<Double2>("dst")?
+        .iter().fold(String::new(), |a,d| a+&format!("({:.10},{:.10}),",d[0],d[1])),
+        {let tmp = (0..num).map(|i| [((i%y)*x+i/y) as f64,0.0].into()).collect::<Vec<Double2>>()
+        .chunks(y).flat_map(|c| ft(c)).map(|d| [d[0]/y as f64,d[1]/y as f64].into()).collect::<Vec<Double2>>();
+        (0..num).map(|i| tmp[(i*y)%(x*y)+i/x]).collect::<Vec<Double2>>()
+        }.into_iter().fold(String::new(), |a,d: Double2| a+&format!("({:.10},{:.10}),",d[0],d[1])),"dim Y");
+
+    Ok(())
+}
+
 #[test]
 fn moments() -> gpgpu::Result<()> {
     let x = 8;
@@ -154,6 +199,7 @@ fn moments() -> gpgpu::Result<()> {
         .add_buffer("dstsum", Len(F64(0.0), num))
         .add_buffer("dstx", Len(F64(0.0), n*y))
         .add_buffer("dsty", Len(F64(0.0), n*x))
+        .add_buffer("dstxy", Len(F64(0.0), n))
         .load_algorithm("moments")
         .build()?;
 
@@ -175,6 +221,11 @@ fn moments() -> gpgpu::Result<()> {
         .chunks(x)
         .fold(vec![(0.0,0.0,0.0,0.0);x],|a,c| a.iter().enumerate().map(|(i,v)| (v.0+c[i].0,v.1+c[i].1,v.2+c[i].2,v.3+c[i].3)).collect())
         .iter().map(|&(a,b,c,d)| vec![a,b,c,d]).flatten().map(|i| i/y as f64).collect::<Vec<_>>()
+    );
+    gpu.run_algorithm("moments",Dim::D2(x,y),&[X,Y],&["src","tmp","sum","dstsum","dstxy"],Some(&(n as u32)))?;
+    assert_eq!(gpu.get::<f64>("dstxy")?, pow.iter()
+        .fold([0.0,0.0,0.0,0.0],|a,c| [a[0]+c.0,a[1]+c.1,a[2]+c.2,a[3]+c.3])
+        .iter().map(|i| i/(x*y) as f64).collect::<Vec<_>>()
     );
 
     Ok(())

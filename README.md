@@ -29,7 +29,7 @@ Algorithms:
 - [x] moments  
 - [x] cumulants  
 - [x] chose on which dimension to apply algorithms  
-- [ ] 1,2,3D Fourier transform  
+- [x] 1,2,3D Fourier transform  
 
 
 Random number generation:  

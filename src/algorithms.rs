@@ -146,6 +146,8 @@ macro_rules! logreduce {
             },
         };
 
+        //TODO optimise already done direcitons by changing the corresponding dimension to 1
+
         $h.copy::<$Tb>(src,tmp)?;
         for (x,dir) in dims {
             let mut spacing = 2;

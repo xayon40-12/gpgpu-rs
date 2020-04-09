@@ -139,6 +139,8 @@ fn correlation() -> gpgpu::Result<()> {
     assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i/x)*x+x/2) as f64).collect::<Vec<_>>(),"dim X");
     gpu.run_algorithm("correlation",Dim::D2(x,y),&[Y],&["src","dst"],None)?;
     assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * ((i%x)+x*(y/2)) as f64).collect::<Vec<_>>(),"dim Y");
+    gpu.run_algorithm("correlation",Dim::D2(x,y),&[X,Y],&["src","dst"],None)?;
+    assert_eq!(gpu.get::<f64>("dst")?, (0..num).map(|i| i as f64 * (x*y/2) as f64).collect::<Vec<_>>(),"dim XY");
 
     Ok(())
 }

@@ -156,10 +156,19 @@ fn ft(tab: &[Double2]) -> Vec<Double2> {
     ).collect()
 }
 
+fn cut(x: f64) -> f64 {
+    let pow = 10.0f64.powf(10.0);
+    ((x*pow) as u64) as f64/pow
+}
+
+fn cut2(x: Double2) -> Double2 {
+    [cut(x[0]),cut(x[1])].into()
+}
+
 #[test]
 fn fft() -> gpgpu::Result<()> {
-    let x = 8;
-    let y = 4;
+    let x = 1<<2;
+    let y = 1<<3;
     let num = x*y;
     let mut gpu = Handler::builder()?
         .add_buffer("src", Data(VecType::F64_2((0..num).map(|i| [i as f64,0.0].into()).collect())))
@@ -169,19 +178,27 @@ fn fft() -> gpgpu::Result<()> {
         .build()?;
 
     gpu.run_algorithm("FFT",Dim::D2(x,y),&[X],&["src","tmp","dst"],None)?;
-    assert_eq!(gpu.get::<Double2>("dst")?
-        .iter().fold(String::new(), |a,d| a+&format!("({:.10},{:.10}),",d[0],d[1]))
+    assert_eq!(gpu.get::<Double2>("dst")?.iter().map(|&d| cut2(d)).collect::<Vec<_>>()
         , (0..num).map(|i| [i as f64,0.0].into()).collect::<Vec<Double2>>()
-        .chunks(x).flat_map(|c| ft(c)).map(|d| [d[0]/x as f64,d[1]/x as f64].into())
-        .fold(String::new(), |a,d: Double2| a+&format!("({:.10},{:.10}),",d[0],d[1])),"dim X");
+        .chunks(x).flat_map(|c| ft(c)).map(|d| cut2([d[0]/x as f64,d[1]/x as f64].into())).collect::<Vec<_>>(),"dim X");
 
     gpu.run_algorithm("FFT",Dim::D2(x,y),&[Y],&["src","tmp","dst"],None)?;
-    assert_eq!(gpu.get::<Double2>("dst")?
-        .iter().fold(String::new(), |a,d| a+&format!("({:.10},{:.10}),",d[0],d[1])),
+    assert_eq!(gpu.get::<Double2>("dst")?.iter().map(|&d| cut2(d)).collect::<Vec<_>>(),
         {let tmp = (0..num).map(|i| [((i%y)*x+i/y) as f64,0.0].into()).collect::<Vec<Double2>>()
         .chunks(y).flat_map(|c| ft(c)).map(|d| [d[0]/y as f64,d[1]/y as f64].into()).collect::<Vec<Double2>>();
-        (0..num).map(|i| tmp[(i*y)%(x*y)+i/x]).collect::<Vec<Double2>>()
-        }.into_iter().fold(String::new(), |a,d: Double2| a+&format!("({:.10},{:.10}),",d[0],d[1])),"dim Y");
+        (0..num).map(|i| cut2(tmp[(i*y)%(x*y)+i/x])).collect::<Vec<Double2>>()
+        },"dim Y");
+
+    gpu.run_algorithm("FFT",Dim::D2(x,y),&[Y,X],&["src","tmp","dst"],None)?;
+    let para = gpu.get::<Double2>("dst")?.iter().map(|&d| cut2(d)).collect::<Vec<_>>();
+    let local = {
+            let tmpp = (0..num).map(|i| [i as f64,0.0].into()).collect::<Vec<Double2>>()
+            .chunks(x).flat_map(|c| ft(c)).map(|d| [d[0]/x as f64,d[1]/x as f64].into()).collect::<Vec<Double2>>();
+            let tmp = (0..num).map(|i| tmpp[((i%y)*x+i/y)]).collect::<Vec<Double2>>()
+            .chunks(y).flat_map(|c| ft(c)).map(|d| [d[0]/y as f64,d[1]/y as f64].into()).collect::<Vec<Double2>>();
+            (0..num).map(|i| cut2(tmp[(i*y)%(x*y)+i/x])).collect::<Vec<Double2>>()
+        };
+    assert_eq!(para,local,"dim XY");
 
     Ok(())
 }

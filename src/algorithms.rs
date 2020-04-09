@@ -68,30 +68,29 @@ macro_rules! center {
     (nedeed $kern:expr) => {
         vec![$kern]
     };
-    (init $bufs:ident, $name:literal, $src:ident $tmp:ident $dst:ident) => {
+    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 2,
-            $src
-            $dst
+            src
+            dst
         );
-    };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $d:ident $dims:ident $size:ident, $dirs:ident, $src:ident $tmp:ident $dst:ident) => {
-        for (x,dir) in $dims {
-            $h.run_arg(concat!("algo_",$name), $d(1,dir), &[BufArg(&$src,"src"),BufArg(&$dst,"dst"),Param("dir",U8(dir as u8))])?;
-        }
+        let mut dirs = [0u8,0,0];
+        if $dirs.len() < 1 { panic!("There must be at least one direction given for algorithm \"{}\"", concat!("algo_",$name)); }
+        $dirs.iter().for_each(|d| dirs[*d as usize] = 1);
+        $h.run_arg(concat!("algo_",$name), $dim, &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("dir",$Ep_3(dirs.into()))])?;
     };
     (src $src:literal) => {
         concat!("
             y *= x_size;
             z *= x_size*y_size;
-            uint xp = (uint[3]){x_size/2,x,x}[dir];
-            uint yp = (uint[3]){y,x_size*(y_size/2),y}[dir];
-            uint zp = (uint[3]){z,z,x_size*y_size*(z_size/2)}[dir];
+            uint xp = (uint[2]){x,x_size/2}[dir.x];
+            uint yp = (uint[2]){y,x_size*(y_size/2)}[dir.y];
+            uint zp = (uint[2]){z,x_size*y_size*(z_size/2)}[dir.z];
             uint id = x+y+z;
             uint idp = xp+yp+zp;
         ",$src)
     };
     (args $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident) => {
-        vec![KC::ConstBuffer("src",EmT::$Eb),KC::Buffer("dst",EmT::$Eb),KC::Param("dir",EmT::U8)]
+        vec![KC::ConstBuffer("src",EmT::$Eb),KC::Buffer("dst",EmT::$Eb),KC::Param("dir",EmT::$Ep_3)]
     };
 }
 
@@ -99,25 +98,65 @@ macro_rules! logreduce {
     (nedeed $kern:expr) => {
         vec![$kern,KernelName("move")]
     };
-    (init $bufs:ident, $name:literal, $src:ident $tmp:ident $dst:ident) => {
+    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
-            $src
-            $tmp
-            $dst
+            src
+            tmp
+            dst
         );
-    };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $d:ident $dims:ident $size:ident, $dirs:ident, $src:ident $tmp:ident $dst:ident) => {
-        $h.copy::<$Tb>($src,$tmp)?;
-        for (x,dir) in $dims {
+
+        let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
+        let (d, dims, size): (Box<dyn Fn(usize, DimDir) -> Dim>, _, _) = match $dim {
+            D1(x) => {
+                if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
+                (Box::new(move |s,dir| match dir {
+                    X => D1(len(s,x)),
+                    _ => panic!("Direction \"{:?}\" is not accessible with dimension \"{:?}\" in algorithm \"{}\"", dir, $dim, $name),
+                }),
+                vec![(x,X)],
+                [x as _,1,1])
+            },
+            D2(x,y) => {
+                if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
+                (Box::new(move |s,dir| match dir {
+                    X => D2(len(s,x),y),
+                    Y => D2(x,len(s,y)),
+                    _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\"",dir,$dim,$name),
+                }),
+                $dirs.into_iter().map(|dir| match dir {
+                    X => (x,X),
+                    Y => (y,Y),
+                    _ => panic!("Direction \"{:?}\" is not accessible with dimension \"{:?}\" in algorithm \"{}\"", dir, $dim, $name)
+                }).collect(),
+                [x as _,y as _,1])
+            },
+            D3(x,y,z) => {
+                if x<=1 || y<=1 || z<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {}, z: {})", $name, x, y, z); }
+                (Box::new(move |s,dir| match dir {
+                    X => D3(len(s,x),y,z),
+                    Y => D3(x,len(s,y),z),
+                    Z => D3(x,y,len(s,z)),
+                }),
+                $dirs.into_iter().map(|dir| match dir {
+                    X => (x,X),
+                    Y => (y,Y),
+                    Z => (z,Z),
+                }).collect(),
+                [x as _,y as _,z as _])
+            },
+        };
+
+        $h.copy::<$Tb>(src,tmp)?;
+        for (x,dir) in dims {
             let mut spacing = 2;
-            $h.run_arg(concat!("algo_",$name), $d(spacing,dir), &[Param("s",$Ep(spacing as _)),BufArg(&$tmp,"src"),BufArg(&$tmp,"dst"),Param("size",$Ep_3($size.into())),Param("dir",U8(dir as u8))])?;
+            $h.run_arg(concat!("algo_",$name), d(spacing,dir), &[Param("s",$Ep(spacing as _)),BufArg(&tmp,"src"),BufArg(&tmp,"dst"),Param("size",$Ep_3(size.into())),Param("dir",U8(dir as u8))])?;
             while spacing<x {
                 spacing *= 2;
-                $h.run_arg(concat!("algo_",$name), $d(spacing,dir), &[Param("s",$Ep(spacing as _))])?;
+                $h.run_arg(concat!("algo_",$name), d(spacing,dir), &[Param("s",$Ep(spacing as _))])?;
             }
         }
-        let dims = $dirs.iter().fold($size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
-        $h.run_arg("move",dims.into(),&[BufArg(&$tmp,"src"),BufArg(&$dst,"dst"),Param("size",$Ep_3($size.into())),Param("offset",U32(0))])?
+        let dims = $dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
+        $h.run_arg("move",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_3(size.into())),Param("offset",U32(0))])?
     };
     (src $src:literal) => {
         concat!("
@@ -140,29 +179,58 @@ macro_rules! log {
     (nedeed $kern:expr) => {
         vec![$kern,KernelName("cdivides")]
     };
-    (init $bufs:ident, $name:literal, $src:ident $tmp:ident $dst:ident) => {
+    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
-            $src
-            $tmp
-            $dst
+            src
+            tmp
+            dst
         );
-    };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $d:ident $dims:ident $size:ident, $dirs:ident, $src:ident $tmp:ident $dst:ident) => {
-        let l = $size[0]*$size[1]*$size[2];
-        for (x,dir) in $dims {
-            if !x.is_power_of_two() { panic!("{} dimensions must be power of two.",$name); }
+        let (dims, size) = match $dim {
+            D1(x) => {
+                if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
+                ($dirs.into_iter().map(|dir| match dir {
+                    X => (x,X),
+                    _ => panic!("Direction \"{:?}\" is not accessible with dimension \"{:?}\" in algorithm \"{}\"", dir, $dim, $name)
+                }).collect::<Vec<_>>(),
+                [x as _,1,1])
+            },
+            D2(x,y) => {
+                if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
+                ($dirs.into_iter().map(|dir| match dir {
+                    X => (x,X),
+                    Y => (y,Y),
+                    _ => panic!("Direction \"{:?}\" is not accessible with dimension \"{:?}\" in algorithm \"{}\"", dir, $dim, $name),
+                }).collect(),
+                [x as _,y as _,1])
+            },
+            D3(x,y,z) => {
+                if x<=1 || y<=1 || z<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {}, z: {})", $name, x, y, z); }
+                ($dirs.into_iter().map(|dir| match dir {
+                    X => (x,X),
+                    Y => (y,Y),
+                    Z => (z,Z),
+                }).collect(),
+                [x as _,y as _,z as _])
+            },
+        };
+        let l = size[0]*size[1]*size[2];
+        let mut j = 0;
+        let mut lnx = 0;
+        while (1<<lnx) < $dirs.iter().fold(1,|a,i| a*size[*i as usize]) { lnx += 1; }
+        let m = lnx%2;
+        let mut begi = m+1;
+        let sd = [&tmp,&dst,&src];
+        for (x,dir) in dims {
+            if !x.is_power_of_two() { panic!("In algorithm \"{}\", dimensions must be power of two.",$name); }
 
-            let mut i = 1;
-            let mut lnx = 0;
-            while (1<<lnx) < x { lnx += 1; }
-            let m = lnx%2;
-            let sd = [&$tmp,&$dst];
-            $h.run_arg(concat!("algo_",$name),$d(1,dir),&[BufArg($src,"src"),BufArg(sd[(i+m+1)%2],"dst"),Param("i",$Ep(i as _)),Param("dir",U8(dir as u8))]);
+            let mut i = 1; j += 1;
+            $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2+begi],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",$Ep(i as _)),Param("dir",U8(dir as u8))]);
             while (1<<i) < x {
-                i += 1;
-                $h.run_arg(concat!("algo_",$name),$d(1,dir),&[BufArg(sd[(i+m)%2],"src"),BufArg(sd[(i+m+1)%2],"dst"),Param("i",$Ep(i as _))]);
+                i += 1; j += 1;
+                $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",$Ep(i as _))]);
             }
-            $h.run_arg("cdivides",D1((l*2) as _),&[BufArg(&$dst,"src"),Param("c",$Ebp(x as _)),BufArg(&$dst,"dst")]);
+            $h.run_arg("cdivides",D1((l*2) as _),&[BufArg(sd[(j+m+1)%2],"src"),Param("c",$Ebp(x as _)),BufArg(&sd[(j+m+1)%2],"dst")]);
+            begi = 0;
         }
     };
     (src $src:literal) => {
@@ -205,35 +273,7 @@ macro_rules! algo_gen {
         Algorithm {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
-                $algo_macro!(init bufs, $name, src tmp dst);
-                let len = |spacing,x| x/spacing + if x%spacing > 1 { 1 } else { 0 };
-                let (d, dims, size): (Box<dyn Fn(usize, DimDir) -> Dim>, _, _) = match dim {
-                    D1(x) => {
-                        if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
-                        (Box::new(move |s,dir| match dir {
-                            X => D1(len(s,x)),
-                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\""),
-                        }),
-                        vec![(x,X)],
-                        [x as _,1,1])
-                    },
-                    D2(x,y) => {
-                        if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
-                        (Box::new(move |s,dir| match dir {
-                            X => D2(len(s,x),y),
-                            Y => D2(x,len(s,y)),
-                            _ => panic!("Direction {:?} does not exist for in dimension {:?} for algorithm \"{}\"",dir,dim,$name),
-                        }),
-                        dirs.into_iter().map(|dir| match dir {
-                            X => (x,X),
-                            Y => (y,Y),
-                            _ => panic!(),
-                        }).collect(),
-                        [x as _,y as _,1])
-                    },
-                    _ => panic!("D3 not yet handled")
-                };
-                $algo_macro!(doing $name,$Eb|$Tb $Ebp $Ep|$Ep_3, h, d dims size, dirs, src tmp dst);
+                $algo_macro!(doing $name, $Eb|$Tb $Ebp $Ep|$Ep_3, h, dim, dirs, bufs);
                 Ok(None)
             }),
             needed: $algo_macro!(nedeed
@@ -258,7 +298,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         // find max value.
         algo_gen!(logreduce "max",F64|f64 U32|U32_3,"dst[id] = (src[id]>src[idp])?src[id]:src[idp];"),
         // Compute correlation.
-        algo_gen!(center "correlation",F64|f64 U32|U32_3,"dst[id] = src[id]*src[idp];"),
+        algo_gen!(center "correlation",F64|f64 U32|U8_3,"dst[id] = src[id]*src[idp];"),
         // Compute the FFT
         algo_gen!(log "FFT",F64_2|Double2 F64 U32|U32_3,"
             double2 e;

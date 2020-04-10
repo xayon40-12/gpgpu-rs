@@ -1,5 +1,5 @@
 use crate::functions::Function;
-use crate::descriptors::{EmptyType::F64,FunctionConstructor::Ptr};
+use crate::descriptors::{EmptyType::F64,FunctionConstructor::*};
 
 // each steps length for each respective dimensions must be constant.
 #[derive(Debug)]
@@ -8,7 +8,6 @@ pub struct DataFile {
     pub lenx: Vec<usize>,
     pub start: Vec<f64>,
     pub data: Vec<f64>,
-    src: Option<String>,
 }
 
 pub enum Format<'a> {
@@ -30,7 +29,7 @@ impl DataFile {
         self.data[id]
     }
 
-    pub fn to_function<'a>(&self, name: &'a str) -> Function<'a> {
+    pub fn to_function<'a>(&self, name: &'a str, huge: bool) -> Function<'a> {
         self.gen_func(name, format!("
             ulong idx[{len}];
             for(int i = 0; i<{len}; i++) {{
@@ -42,7 +41,7 @@ impl DataFile {
             }}
             return data[id];
         ",
-        len = self.dx.len()))
+        len = self.dx.len()), huge)
     }
 
     pub fn get_interpolated(&self, coords: &[f64]) -> f64 {
@@ -64,7 +63,7 @@ impl DataFile {
         ys[0]
     }
 
-    pub fn to_function_interpolated<'a>(&self, name: &'a str) -> Function<'a> {
+    pub fn to_function_interpolated<'a>(&self, name: &'a str, huge: bool) -> Function<'a> {
         self.gen_func(name, format!("
             ulong xs[{len}];
             double xsd[{len}];
@@ -88,30 +87,52 @@ impl DataFile {
             }}
             return ys[0];
         ",
-        len = self.dx.len()))
+        len = self.dx.len()), huge)
     }
 
-    pub fn gen_func<'a>(&self, name: &'a str, content: String) -> Function<'a> {
-        let src = format!("
-            double dx[] = {{{}}};
-            ulong lenx[] = {{{}}};
-            double start[] = {{{}}};
-            double data[] = {{{}}};
+    pub fn gen_func<'a>(&self, name: &'a str, content: String, huge: bool) -> Function<'a> {
+        if huge {
+            let src = format!("
+                double dx[] = {{{}}};
+                ulong lenx[] = {{{}}};
+                double start[] = {{{}}};
 
-            {}
-        ",
-        self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
-        self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
-        self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
-        self.data.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
-        content);
+                {}
+            ",
+            self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+            self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
+            self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+            content);
 
-        Function {
-            name: name.into(),
-            args: vec![Ptr("coords",F64)],
-            ret_type: Some(F64),
-            src,
-            needed: vec![],
+            Function {
+                name: name.into(),
+                args: vec![Ptr("coords",F64),GlobalPtr("data",F64)],
+                ret_type: Some(F64),
+                src,
+                needed: vec![],
+            }
+        } else {
+            let src = format!("
+                double dx[] = {{{}}};
+                ulong lenx[] = {{{}}};
+                double start[] = {{{}}};
+                double data[] = {{{}}};
+
+                {}
+            ",
+            self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+            self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
+            self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+            self.data.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
+            content);
+
+            Function {
+                name: name.into(),
+                args: vec![Ptr("coords",F64)],
+                ret_type: Some(F64),
+                src,
+                needed: vec![],
+            }
         }
     }
 }
@@ -167,5 +188,5 @@ fn from_column<'a>(text: &'a str) -> DataFile {
         }
     }
 
-    DataFile{ dx, lenx, start, data, src: None }
+    DataFile{ dx, lenx, start, data}
 }

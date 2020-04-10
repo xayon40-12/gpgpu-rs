@@ -15,7 +15,7 @@ Global:
 - [x] file loading (CPU)  
 - [x] file loading (GPU) max elements: 8192  
 - [x] file loading interpolation (high extrema excluded)  
-- [ ] huge file loading (GPU)  
+- [x] huge file loading (GPU)  
 
 Kernels:  
 - [x] component wise operators buffer/buffer  

@@ -281,7 +281,8 @@ fn data_file() -> gpgpu::Result<()> {
     use gpgpu::data_file::{DataFile,Format};
 
     let mut file = String::new();
-    let (x,y,z) = (4,4,4);
+    let l = 1<<5;
+    let (x,y,z) = (l,l,l);
     for i in 0..x {
         for k in 0..z {
             for j in 0..y {
@@ -291,20 +292,20 @@ fn data_file() -> gpgpu::Result<()> {
     }
     let data = DataFile::parse(Format::Column(&file));
     let mut gpu = Handler::builder()?
-        .load_data("data",Format::Column(&file),false)
+        .load_data("data",Format::Column(&file),false,Some("databuf"))
         .add_buffer("u", Len(F64(0.0),x*y*z))
         .create_kernel(Kernel {
             name: "kern",
-            args: vec![KC::Buffer("u",EmT::F64)],
+            args: vec![KC::Buffer("u",EmT::F64),KC::Buffer("databuf",EmT::F64)],
             src: "
                 double coord[] = {x,y,z};
-                u[x+x_size*(y+y_size*z)] = data(coord);
+                u[x+x_size*(y+y_size*z)] = data(coord,databuf);
             ",
             needed: vec![],
         })
     .build()?;
 
-    gpu.run_arg("kern",Dim::D3(x,y,z),&[Buffer("u")])?;
+    gpu.run_arg("kern",Dim::D3(x,y,z),&[Buffer("u"),Buffer("databuf")])?;
 
     let gpudata = gpu.get::<f64>("u")?;
     for i in 0..x {
@@ -325,7 +326,7 @@ fn data_file_interpolated() -> gpgpu::Result<()> {
     use gpgpu::data_file::{DataFile,Format};
 
     let mut file = String::new();
-    let (x,y,z) = (2,2,2);
+    let (x,y,z) = (3,5,107);
     for i in 0..=x {
         for j in 0..=y {
             for k in 0..=z {
@@ -339,7 +340,7 @@ fn data_file_interpolated() -> gpgpu::Result<()> {
     let t = 3;
     let (x,y,z) = (x*t,y*t,z*t);
     let mut gpu = Handler::builder()?
-        .load_data("data",Format::Column(&file),true)
+        .load_data("data",Format::Column(&file),true,None)
         .add_buffer("u", Len(F64(0.0),x*y*z))
         .create_kernel(Kernel {
             name: "kern",

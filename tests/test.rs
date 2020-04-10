@@ -66,8 +66,8 @@ fn times() -> gpgpu::Result<()> {
 
 #[test]
 fn sum() -> gpgpu::Result<()> {
-    let x = 8;
-    let y = 3;
+    let x = 97;
+    let y = 107;
     let num = x*y;
     let v = (0..num).map(|i| i as f64).collect::<Vec<_>>();
     let mut gpu = Handler::builder()?
@@ -75,13 +75,20 @@ fn sum() -> gpgpu::Result<()> {
         .add_buffer("tmp", Len(F64(0.0), num))
         .add_buffer("dstx", Len(F64(0.0), y))
         .add_buffer("dsty", Len(F64(0.0), x))
+        .add_buffer("dstxy", Len(F64(0.0), 1))
         .load_algorithm("sum")
         .build()?;
 
+    gpu.run_algorithm("sum",Dim::D2(x,y),&[X,Y],&["src","tmp","dstxy"],None)?;
+    assert_eq!(gpu.get_first::<f64>("dstxy")?, v.iter().fold(0.0,|a,i| i+a), "dim XY");
+
     gpu.run_algorithm("sum",Dim::D2(x,y),&[X],&["src","tmp","dstx"],None)?;
+    gpu.get_first::<f64>("dstx")?;
     assert_eq!(gpu.get::<f64>("dstx")?, v.chunks(x).map(|b| b.iter().fold(0.0,|a,i| i+a)).collect::<Vec<_>>(), "dim X");
     gpu.run_algorithm("sum",Dim::D2(x,y),&[Y],&["src","tmp","dsty"],None)?;
     assert_eq!(gpu.get::<f64>("dsty")?, v.chunks(x).fold(vec![0f64;x],|a,c| a.iter().enumerate().map(|(i,v)| v+c[i]).collect::<Vec<_>>()), "dim Y");
+
+
 
     Ok(())
 }

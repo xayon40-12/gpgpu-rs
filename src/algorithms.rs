@@ -383,7 +383,7 @@ pub fn moments_to_cumulants<'a>(moments: &'a [f64]) -> Vec<f64> {
     for n in 0..len {
         let mut m = 0.0;
         for k in 0..n {
-            m += C(n-1,k-1) as f64*cumulants[k]*moments[n-k];
+            m += C(n,k) as f64*cumulants[k]*moments[n-k-1];
         }
         cumulants[n] = moments[n] - m;
     }

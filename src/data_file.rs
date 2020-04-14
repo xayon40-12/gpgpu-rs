@@ -140,7 +140,7 @@ impl DataFile {
 fn from_column<'a>(text: &'a str) -> DataFile {
     let mut tab = text.trim().lines()
         .map(|l| l.trim())
-        .filter(|l| l.len()>0)
+        .filter(|l| l.len()>0 && !l.starts_with('#') && !l.starts_with("//"))
         .map(|l| l.split(" ").map(|n| n.parse::<f64>().expect(&format!("Could not parse f64 in invocation of DataFile::from_column."))).collect::<Vec<_>>()
         ).collect::<Vec<_>>();
     if tab.len() < 2 {

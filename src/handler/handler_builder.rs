@@ -292,7 +292,7 @@ impl<'a> HandlerBuilder<'a> {
         })
     }
 
-    pub fn load_data(mut self, name: &'a str, data: Format<'a>, interpolated: bool, huge_file_buf_name: Option<&'a str>) -> Self {
+    pub fn load_data<'b>(mut self, name: &'a str, data: Format<'b>, interpolated: bool, huge_file_buf_name: Option<&'b str>) -> Self {
         let data = DataFile::parse(data);
         self = self.create_function(if interpolated { data.to_function_interpolated(name, huge_file_buf_name.is_some()) } else { data.to_function(name, huge_file_buf_name.is_some()) });
         if let Some(bufname) = huge_file_buf_name {

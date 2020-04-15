@@ -1,13 +1,14 @@
 use ocl::SpatialDims;
+use serde::{Deserialize,Serialize};
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Deserialize,Serialize,Debug,Clone,Copy)]
 pub enum Dim {
     D1(usize),
     D2(usize,usize),
     D3(usize,usize,usize)
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Deserialize,Serialize,Debug,Clone,Copy)]
 pub enum DimDir {
     X,
     Y,
@@ -32,6 +33,16 @@ impl From<[usize; 3]> for Dim {
             Dim::D2(dim[0],dim[1])
         } else {
             Dim::D1(dim[0])
+        }
+    }
+}
+
+impl From<Dim> for [usize; 3] {
+    fn from(dim: Dim) -> [usize; 3] {
+        match dim {
+            Dim::D1(x) => [x,1,1],
+            Dim::D2(x,y) => [x,y,1],
+            Dim::D3(x,y,z) => [x,y,z]
         }
     }
 }

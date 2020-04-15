@@ -26,6 +26,7 @@ pub enum Needed<'a> { //TODO use one SC for each &'a str
     NewKernel(Kernel<'a>)
 }
 use Needed::*;
+use crate::functions::Needed::*;
 
 macro_rules! ifs {
     ($bufs:ident, $alg:expr, $num:literal) => {
@@ -68,6 +69,9 @@ macro_rules! center {
     (nedeed $kern:expr) => {
         vec![$kern]
     };
+    (kern_needed) => {
+        vec![]
+    };
     (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 2,
             src
@@ -97,6 +101,9 @@ macro_rules! center {
 macro_rules! logreduce {
     (nedeed $kern:expr) => {
         vec![$kern,KernelName("move")]
+    };
+    (kern_needed) => {
+        vec![]
     };
     (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
@@ -180,6 +187,9 @@ macro_rules! logreduce {
 macro_rules! log {
     (nedeed $kern:expr) => {
         vec![$kern,KernelName("cdivides")]
+    };
+    (kern_needed) => {
+        vec![FuncName("c_exp".into()),FuncName("c_times".into())]
     };
     (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
@@ -283,7 +293,7 @@ macro_rules! algo_gen {
                     name: concat!("algo_",$name),
                     args: $algo_macro!(args $Eb|$Tb $Ep|$Ep_3),
                     src: $algo_macro!(src $src),
-                    needed: vec![],
+                    needed: $algo_macro!(kern_needed),
                 })
             )
         }
@@ -303,14 +313,7 @@ pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
         algo_gen!(center "correlation",F64|f64 U32|U32_3,"dst[id] = src[id]*src[idp];"),
         // Compute the FFT
         algo_gen!(log "FFT",F64_2|Double2 F64 U32|U32_3,"
-            double2 e;
-            double ex;
-            e.y = sincos(-2*M_PI*u/(1<<i),&ex);
-            e.x = ex;
-            double2 a = src[ida];
-            double2 b = src[idb];
-            double2 c = (double2)(b.x*e.x-b.y*e.y,b.x*e.y+b.y*e.x);
-            dst[id] = a + c;
+            dst[id] = src[ida] + c_times(src[idb],c_exp(-2*M_PI*u/(1<<i)));
         "),
         // Compute moments. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
         // size x (where x and y are the first and second dimensions).

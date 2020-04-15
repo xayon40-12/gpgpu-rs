@@ -1,7 +1,7 @@
 use crate::descriptors::KernelConstructor::{self,*};
 use crate::descriptors::EmptyType::*;
 use std::collections::HashMap;
-use crate::functions::Needed;
+use crate::functions::Needed::{self,*};
 
 #[derive(Clone)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
@@ -223,6 +223,54 @@ pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
             args: vec![Buffer("src",F64),Buffer("dst",F64),Param("size",U32_3),Param("offset",U32)],
             src: "dst[x+size.x*(y+size.y*z) + offset] = src[x+x_size*(y+y_size*z)];",
             needed: vec![],
+        },
+        Kernel {
+            name: "complex_from_real",
+            args: vec![Buffer("src",F64),Buffer("dst",F64_2)],
+            src: "dst[x] = (double2)(src[x],0);",
+            needed: vec![],
+        },
+        Kernel {
+            name: "complex_from_image",
+            args: vec![Buffer("src",F64),Buffer("dst",F64_2)],
+            src: "dst[x] = (double2)(0,src[x]);",
+            needed: vec![],
+        },
+        Kernel {
+            name: "real_from_complex",
+            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            src: "dst[x] = src[x].x;",
+            needed: vec![],
+        },
+        Kernel {
+            name: "image_from_complex",
+            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            src: "dst[x] = src[x].y;",
+            needed: vec![],
+        },
+        Kernel {
+            name: "kc_sqrmod",
+            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            src: "dst[x] = c_sqrmod(src[x]);",
+            needed: vec![FuncName("c_sqrmod".into())],
+        },
+        Kernel {
+            name: "kc_mod",
+            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            src: "dst[x] = c_mod(src[x]);",
+            needed: vec![FuncName("c_mod".into())],
+        },
+        Kernel {
+            name: "kc_times",
+            args: vec![Buffer("a",F64_2),Buffer("b",F64_2),Buffer("dst",F64_2)],
+            src: "dst[x] = c_times(a[x],b[x]);",
+            needed: vec![FuncName("c_times".into())],
+        },
+        Kernel {
+            name: "kc_divides",
+            args: vec![Buffer("a",F64_2),Buffer("b",F64_2),Buffer("dst",F64_2)],
+            src: "dst[x] = c_divides(a[x],b[x]);",
+            needed: vec![FuncName("c_divides".into())],
         },
         ].into_iter().map(|k| (k.name,k)).collect()
 }

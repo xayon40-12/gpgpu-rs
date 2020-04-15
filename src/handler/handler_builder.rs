@@ -144,6 +144,14 @@ impl<'a> HandlerBuilder<'a> {
         let alg = self.available_algorithms.get(name).expect(&format!("algorithm \"{}\" not found",name)).clone();
         self.add_algorithm(alg, None, None)
     }
+    
+    pub fn load_all_algorithms(mut self) -> Self {
+        for alg in self.available_algorithms.values().map(|a| a.clone()).collect::<Vec<_>>() {
+            self = self.add_algorithm(alg, None, None);
+        }
+
+        self
+    }
 
     pub fn load_algorithm_named(self, name: &str, as_name: &'a str) -> Self {
         assert_ne!(name, as_name, "Names must be different for method \"load_algorithm_named\", given name \"{}\"", name);

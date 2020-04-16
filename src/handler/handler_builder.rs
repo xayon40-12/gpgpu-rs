@@ -14,7 +14,7 @@ pub struct HandlerBuilder {
     kernels: HashMap<String,(SKernel,String)>,
     algorithms: HashMap<String,(Callback,String)>,
     functions: HashMap<String,(SFunction,String)>,
-    buffers: Vec<(String,BufferConstructor)>,
+    buffers: Vec<(String,SBufferConstructor)>,
     data: HashMap<String, DataFile>,
 }
 
@@ -32,12 +32,12 @@ impl HandlerBuilder {
         })
     }
 
-    pub fn add_buffer(mut self, name: &str, desc: BufferConstructor) -> Self {
+    pub fn add_buffer<T: Type, V: VecType>(mut self, name: &str, desc: BufferConstructor<T,V>) -> Self {
         self.buffers.push((name.to_string(),desc));
         self
     }
 
-    pub fn add_buffers(self, buffers: Vec<(&str,BufferConstructor)>) -> Self {
+    pub fn add_buffers<T: Type, V: VecType>(self, buffers: Vec<(&str,BufferConstructor<T,V>)>) -> Self {
         let mut hand = self;
         for (name,desc) in buffers {
             hand = hand.add_buffer(name,desc);

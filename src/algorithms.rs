@@ -1,7 +1,7 @@
 use crate::{Handler,kernels::{Kernel,SKernel}};
 use crate::Dim::{self,*};
 use crate::descriptors::KernelArg::*;
-use crate::descriptors::{Type::*,VecType};
+use crate::descriptors::{types::*};
 use std::collections::HashMap;
 use std::rc::Rc;
 use crate::descriptors::KernelConstructor as KC;
@@ -10,7 +10,7 @@ use std::any::Any;
 use crate::DimDir::{*,self};
 
 //Fn(handler: &mut Handler, dim: Dim, dim_dir: &[DimDir], buf_names: Vec<String>, other_args: Option<&dyn Any>)
-pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>>)>;
+pub type Callback = Rc<(dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<()>)>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> { //TODO use one SC for each &'a str

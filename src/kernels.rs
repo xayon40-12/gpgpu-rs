@@ -1,5 +1,5 @@
 use crate::descriptors::{KernelConstructor::{self,*},SKernelConstructor};
-use crate::descriptors::EmptyType::*;
+use crate::descriptors::empty_types::*;
 use std::collections::HashMap;
 use crate::functions::{Needed::{self,*},SNeeded};
 use serde::{Serialize,Deserialize};

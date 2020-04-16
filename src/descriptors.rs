@@ -29,9 +29,23 @@ impl<'a> From<&KernelArg<'a>> for SKernelArg {
 }
 
 #[derive(Clone)]
-pub enum BufferConstructor<'a> {
-    Len(&'a dyn Type,usize), // Len(repeated value, len)
-    Data(&'a dyn VecType),
+pub enum BufferConstructor<T: Type, V: VecType> {
+    Len(T,usize), // Len(repeated value, len)
+    Data(V),
+}
+
+pub enum SBufferConstructor {
+    Len(Box<dyn Type>,usize), // Len(repeated value, len)
+    Data(Box<dyn VecType>),
+}
+
+impl<T: Type, V: VecType> From<&BufferConstructor<T,V>> for SBufferConstructor {
+    fn from(n: &BufferConstructor<T,V>) -> Self {
+        match n {
+            BufferConstructor::Len(t,s) => SBufferConstructor::Len(t.into(),s),
+            BufferConstructor::Data(v) => SBufferConstructor::Data(v.into()),
+        }
+    }
 }
 
 #[derive(Clone,Serialize,Deserialize)]
@@ -45,7 +59,8 @@ pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
 pub enum SKernelConstructor {
     Param(String, Box<dyn EmptyType>),
     Buffer(String, Box<dyn EmptyType>),
-    ConstBuffer(String, Box<dyn EmptyType>),}
+    ConstBuffer(String, Box<dyn EmptyType>),
+}
 
 impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
     fn from(n: &KernelConstructor<'a>) -> Self {
@@ -111,11 +126,9 @@ macro_rules! gen_traits_to_box {
 }
 
 macro_rules! impl_traits_to_box {
-    ($type:ident $trait:ident) => {
-        impl $trait for $type {
-            fn to_box(&self) -> Box<dyn $trait> {
-                Box::new(self.clone())
-            }
+    ($trait:ident) => {
+        fn to_box(&self) -> Box<dyn $trait> {
+            Box::new(self.clone())
         }
     };
 }
@@ -123,7 +136,7 @@ macro_rules! impl_traits_to_box {
 
 macro_rules! gen_types {
     ($types:ident|$trait:ident $empty_types:ident|$empty_trait:ident $buffer_types:ident|$buffer_trait:ident $vec_types:ident|$vec_trait:ident, $($type:ident|$type_rust:ident $type_dim:literal|$type_ocl:ident|$type_opencl:literal) +) => {
-        mod $types {
+        pub mod $types {
             pub trait $trait {
                 fn to_box(&self) -> Box<dyn $trait>;
             }
@@ -136,8 +149,8 @@ macro_rules! gen_types {
 
                 }
                 impl_types!($type, $type_opencl);
-                impl_traits_to_box!($type $trait);
                 impl $trait for $type {
+                    impl_traits_to_box!($trait);
 
                 }
                 impl From<[$type_rust;$type_dim]> for $type {
@@ -148,7 +161,7 @@ macro_rules! gen_types {
             )+
         }
 
-        mod $empty_types {
+        pub mod $empty_types {
             pub trait $empty_trait {
                 fn to_box(&self) -> Box<dyn $empty_trait>;
             }
@@ -166,7 +179,7 @@ macro_rules! gen_types {
             )+
         }
 
-        mod $buffer_types {
+        pub mod $buffer_types {
             pub trait $buffer_trait {
                 fn to_box(&self) -> Box<dyn $buffer_trait>;
             }
@@ -185,7 +198,7 @@ macro_rules! gen_types {
             )+
         }
 
-        mod $vec_types {
+        pub mod $vec_types {
             pub trait $vec_trait {
                 fn to_box(&self) -> Box<dyn $vec_trait>;
             }

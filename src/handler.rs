@@ -5,7 +5,7 @@ pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
 
 use crate::dim::{Dim,DimDir};
-use crate::descriptors::{KernelArg,BufType,Type,VecType};
+use crate::descriptors::{KernelArg,BufferType,Type,VecType};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
 
@@ -16,7 +16,7 @@ pub struct Handler {
     pq: ProQue,
     kernels: HashMap<String,(Kernel,BTreeMap<String,u32>)>,
     algorithms: HashMap<String,Callback>,
-    buffers: HashMap<String,BufType>,
+    buffers: HashMap<String,Box<dyn BufferType>>,
     data: HashMap<String,DataFile>,
 }
 
@@ -96,7 +96,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Vec<VecType>>> {
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<()> {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
 

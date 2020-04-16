@@ -5,7 +5,7 @@ use gpgpu::{Dim,DimDir::*};
 use gpgpu::descriptors::KernelConstructor as KC;
 use gpgpu::descriptors::EmptyType as EmT;
 
-use ocl::prm::*;
+use gpgpu::types::*;
 
 #[test]
 fn simple_main() -> gpgpu::Result<()> {

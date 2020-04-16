@@ -1,3 +1,5 @@
+use serde::{Serialize,Deserialize};
+
 #[derive(Clone)]
 pub enum KernelArg<'a> { //TODO use one SC for each &'a str
     Param(&'a str,Type),
@@ -28,14 +30,14 @@ pub enum BufferConstructor {
     Data(VecType),
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
     Param(&'a str, EmptyType),
     Buffer(&'a str, EmptyType),
     ConstBuffer(&'a str, EmptyType),
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum SKernelConstructor {
     Param(String, EmptyType),
     Buffer(String, EmptyType),
@@ -51,7 +53,7 @@ impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     Param(&'a str, EmptyType),
     Ptr(&'a str, EmptyType),
@@ -59,7 +61,7 @@ pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     ConstPtr(&'a str, EmptyType),
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum SFunctionConstructor {
     Param(String, EmptyType),
     Ptr(String, EmptyType),
@@ -156,7 +158,7 @@ macro_rules! gen_types {
         impl_types!($namevectype, $($case|$case_t|$case_ocl) +);
 
 
-        #[derive(Debug,Clone,Copy)]
+        #[derive(Debug,Clone,Copy,Serialize,Deserialize)]
         pub enum $nameemptytype {
             $($case,)+
         }

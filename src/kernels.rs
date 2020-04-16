@@ -2,8 +2,9 @@ use crate::descriptors::{KernelConstructor::{self,*},SKernelConstructor};
 use crate::descriptors::EmptyType::*;
 use std::collections::HashMap;
 use crate::functions::{Needed::{self,*},SNeeded};
+use serde::{Serialize,Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub name: &'a str,
     pub args: Vec<KernelConstructor<'a>>,
@@ -11,7 +12,7 @@ pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub needed: Vec<Needed<'a>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct SKernel {
     pub name: String,
     pub args: Vec<SKernelConstructor>,

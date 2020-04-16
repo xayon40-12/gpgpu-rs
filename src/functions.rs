@@ -1,8 +1,9 @@
 use crate::descriptors::{FunctionConstructor::{self,*},SFunctionConstructor};
 use crate::descriptors::EmptyType::{*,self};
 use std::collections::HashMap;
+use serde::{Serialize,Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct Function<'a> {
     pub name: &'a str,
     pub args: Vec<FunctionConstructor<'a>>,
@@ -11,7 +12,7 @@ pub struct Function<'a> {
     pub needed: Vec<Needed<'a>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct SFunction {
     pub name: String,
     pub args: Vec<SFunctionConstructor>,
@@ -32,13 +33,13 @@ impl<'a> From<&Function<'a>> for SFunction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum Needed<'a> {
     FuncName(&'a str),
     CreateFunc(Function<'a>)
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum SNeeded {
     FuncName(String),
     CreateFunc(SFunction)

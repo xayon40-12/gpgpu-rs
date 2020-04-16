@@ -1,5 +1,5 @@
 use ocl::ProQue;
-use ocl::prm::*;
+use crate::types::*;
 use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{self,Kernel,SKernel};

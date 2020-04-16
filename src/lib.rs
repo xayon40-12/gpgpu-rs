@@ -15,6 +15,6 @@ pub mod philox;
 
 pub mod data_file;
 
-pub use ocl::prm::*;
+pub use ocl::prm as types;
 
 pub type Result<T> = ocl::Result<T>;

@@ -1,19 +1,15 @@
 use serde::{Serialize,Deserialize};
-pub use types::Type;
-pub use empty_types::EmptyType;
-pub use buffer_types::BufferType;
-pub use vec_types::VecType;
 
 #[derive(Clone)]
 pub enum KernelArg<'a> { //TODO use one SC for each &'a str
-    Param(&'a str, &'a dyn Type),
+    Param(&'a str, dyn Type),
     Buffer(&'a str),
     BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
 }
 
 #[derive(Clone)]
 pub enum SKernelArg {
-    Param(String, Box<dyn Type>),
+    Param(String, dyn Type),
     Buffer(String),
     BufArg(String,String), // BufArg(mem buf, kernel buf)
 }
@@ -21,7 +17,7 @@ pub enum SKernelArg {
 impl<'a> From<&KernelArg<'a>> for SKernelArg {
     fn from(n: &KernelArg<'a>) -> Self {
         match n {
-            KernelArg::Param(s,e) => SKernelArg::Param((*s).into(),(*e).into()),
+            KernelArg::Param(s,e) => SKernelArg::Param((*s).into(),*e),
             KernelArg::Buffer(s) => SKernelArg::Buffer((*s).into()),
             KernelArg::BufArg(s,ss) => SKernelArg::BufArg((*s).into(),(*ss).into()),
         }
@@ -30,56 +26,56 @@ impl<'a> From<&KernelArg<'a>> for SKernelArg {
 
 #[derive(Clone)]
 pub enum BufferConstructor<'a> {
-    Len(&'a dyn Type,usize), // Len(repeated value, len)
-    Data(&'a dyn VecType),
+    Len(dyn Type,usize), // Len(repeated value, len)
+    Data(dyn VecType),
 }
 
 #[derive(Clone,Serialize,Deserialize)]
 pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
-    Param(&'a str, &'a dyn EmptyType),
-    Buffer(&'a str, &'a dyn EmptyType),
-    ConstBuffer(&'a str, &'a dyn EmptyType),
+    Param(&'a str, dyn EmptyType),
+    Buffer(&'a str, dyn EmptyType),
+    ConstBuffer(&'a str, dyn EmptyType),
 }
 
 #[derive(Clone,Serialize,Deserialize)]
 pub enum SKernelConstructor {
-    Param(String, Box<dyn EmptyType>),
-    Buffer(String, Box<dyn EmptyType>),
-    ConstBuffer(String, Box<dyn EmptyType>),}
+    Param(String, dyn EmptyType),
+    Buffer(String, dyn EmptyType),
+    ConstBuffer(String, dyn EmptyType),}
 
 impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
     fn from(n: &KernelConstructor<'a>) -> Self {
         match n {
-            KernelConstructor::Param(s,e) => SKernelConstructor::Param((*s).into(),(*e).into()),
-            KernelConstructor::Buffer(s,e) => SKernelConstructor::Buffer((*s).into(),(*e).into()),
-            KernelConstructor::ConstBuffer(s,e) => SKernelConstructor::ConstBuffer((*s).into(),(*e).into()),
+            KernelConstructor::Param(s,e) => SKernelConstructor::Param((*s).into(),*e),
+            KernelConstructor::Buffer(s,e) => SKernelConstructor::Buffer((*s).into(),*e),
+            KernelConstructor::ConstBuffer(s,e) => SKernelConstructor::ConstBuffer((*s).into(),*e),
         }
     }
 }
 
 #[derive(Clone,Serialize,Deserialize)]
 pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
-    Param(&'a str, &'a dyn EmptyType),
-    Ptr(&'a str, &'a dyn EmptyType),
-    GlobalPtr(&'a str, &'a dyn EmptyType),
-    ConstPtr(&'a str, &'a dyn EmptyType),
+    Param(&'a str, dyn EmptyType),
+    Ptr(&'a str, dyn EmptyType),
+    GlobalPtr(&'a str, dyn EmptyType),
+    ConstPtr(&'a str, dyn EmptyType),
 }
 
 #[derive(Clone,Serialize,Deserialize)]
 pub enum SFunctionConstructor {
-    Param(String, Box<dyn EmptyType>),
-    Ptr(String, Box<dyn EmptyType>),
-    GlobalPtr(String, Box<dyn EmptyType>),
-    ConstPtr(String, Box<dyn EmptyType>),
+    Param(String, dyn EmptyType),
+    Ptr(String, dyn EmptyType),
+    GlobalPtr(String, dyn EmptyType),
+    ConstPtr(String, dyn EmptyType),
 }
 
 impl<'a> From<&FunctionConstructor<'a>> for SFunctionConstructor {
     fn from(n: &FunctionConstructor<'a>) -> Self {
         match n {
-            FunctionConstructor::Param(s,e) => SFunctionConstructor::Param((*s).into(),(*e).into()),
-            FunctionConstructor::Ptr(s,e) => SFunctionConstructor::Ptr((*s).into(),(*e).into()),
-            FunctionConstructor::GlobalPtr(s,e) => SFunctionConstructor::GlobalPtr((*s).into(),(*e).into()),
-            FunctionConstructor::ConstPtr(s,e) => SFunctionConstructor::ConstPtr((*s).into(),(*e).into()),
+            FunctionConstructor::Param(s,e) => SFunctionConstructor::Param((*s).into(),*e),
+            FunctionConstructor::Ptr(s,e) => SFunctionConstructor::Ptr((*s).into(),*e),
+            FunctionConstructor::GlobalPtr(s,e) => SFunctionConstructor::GlobalPtr((*s).into(),*e),
+            FunctionConstructor::ConstPtr(s,e) => SFunctionConstructor::ConstPtr((*s).into(),*e),
         }
     }
 }
@@ -100,34 +96,14 @@ macro_rules! impl_types {
 
 //TODO to_buffer(len: usize) -> Buffer<Self>
 
-macro_rules! gen_traits_to_box {
-    ($name:ident) => {
-        impl From<&dyn $name> for Box<dyn $name> {
-            fn from(t: &dyn $name) -> Box<dyn $name> {
-                t.to_box()
-            }
-        }
-    };
-}
-
-macro_rules! impl_traits_to_box {
-    ($type:ident $trait:ident) => {
-        impl $trait for $type {
-            fn to_box(&self) -> Box<dyn $trait> {
-                Box::new(self.clone())
-            }
-        }
-    };
-}
-
+pub trait Type {}
+pub trait EmptyType {}
+pub trait BufferType {}
+pub trait VecType {}
 
 macro_rules! gen_types {
-    ($types:ident|$trait:ident $empty_types:ident|$empty_trait:ident $buffer_types:ident|$buffer_trait:ident $vec_types:ident|$vec_trait:ident, $($type:ident|$type_rust:ident $type_dim:literal|$type_ocl:ident|$type_opencl:literal) +) => {
+    ($types:ident $empty_types:ident $buffer_types:ident $vec_types:ident, $($type:ident|$type_rust:ident $type_dim:literal|$type_ocl:ident|$type_opencl:literal) +) => {
         mod $types {
-            pub trait $trait {
-                fn to_box(&self) -> Box<dyn $trait>;
-            }
-            gen_traits_to_box!($trait);
             $(
                 #[derive(Debug,Clone,Copy)]
                 #[repr(C)]
@@ -136,8 +112,7 @@ macro_rules! gen_types {
 
                 }
                 impl_types!($type, $type_opencl);
-                impl_traits_to_box!($type $trait);
-                impl $trait for $type {
+                impl super::Type for $type {
 
                 }
                 impl From<[$type_rust;$type_dim]> for $type {
@@ -149,10 +124,6 @@ macro_rules! gen_types {
         }
 
         mod $empty_types {
-            pub trait $empty_trait {
-                fn to_box(&self) -> Box<dyn $empty_trait>;
-            }
-            gen_traits_to_box!($empty_trait);
             $(
                 #[derive(Debug,Clone,Copy)]
                 pub struct $type;
@@ -160,17 +131,13 @@ macro_rules! gen_types {
                 impl $type {
 
                 }
-                impl $empty_trait for $type {
+                impl super::EmptyType for $type {
 
                 }
             )+
         }
 
         mod $buffer_types {
-            pub trait $buffer_trait {
-                fn to_box(&self) -> Box<dyn $buffer_trait>;
-            }
-            //gen_traits_to_box!($buffer_trait);
             use ocl::prm::*;
             $(
                 pub struct $type(ocl::Buffer<$type_ocl>);
@@ -179,24 +146,20 @@ macro_rules! gen_types {
                         kernel.0.set_arg(*kernel.1.get(param).expect(&format!("Param \"{}\" not present in kernel \"{}\"",param,kernel_name)),self.0);
                     }
                 }
-                impl $buffer_trait for $type {
+                impl super::BufferType for $type {
 
                 }
             )+
         }
 
         mod $vec_types {
-            pub trait $vec_trait {
-                fn to_box(&self) -> Box<dyn $vec_trait>;
-            }
-            gen_traits_to_box!($vec_trait);
             $(
                 #[derive(Debug,Clone)]
                 pub struct $type(Vec<super::$types::$type>);
                 impl $type {
 
                 }
-                impl $vec_trait for $type {
+                impl super::Type for $type {
 
                 }
                 impl From<Vec<super::$types::$type>> for $type {
@@ -215,17 +178,18 @@ macro_rules! gen_types {
     };
 }
 
-gen_types!(types|Type empty_types|EmptyType buffer_types|BufferType vec_types|VecType,
-    F64  |f64 1|f64    |"double"
-    F32  |f32 1|f32    |"float"
-    U64  |u64 1|u64    |"ulong"
-    I64  |i64 1|i64    |"long"
-    U32  |u32 1|u32    |"uint"
-    I32  |i32 1|i32    |"int"
-    U16  |u16 1|u16    |"ushort"
-    I16  |i16 1|i16    |"short"
-    U8   |u8  1|u8     |"uchar"
-    I8   |i8  1|i8     |"char"
+
+gen_types!(types empty_types buffer_types vec_types,
+    F64|f64 1|f64|"double"
+    F32|f32 1|f32|"float"
+    U64|u64 1|u64|"ulong"
+    I64|i64 1|i64|"long"
+    U32|u32 1|u32|"uint"
+    I32|i32 1|i32|"int"
+    U16|u16 1|u16|"ushort"
+    I16|i16 1|i16|"short"
+    U8 |u8  1|u8 |"uchar"
+    I8 |i8  1|i8 |"char"
     F64_2|f64 2|Double2|"double2"
     F32_2|f32 2|Float2 |"float2"
     U64_2|u64 2|Ulong2 |"ulong2"

@@ -6,6 +6,23 @@ pub enum KernelArg<'a> { //TODO use one SC for each &'a str
 }
 
 #[derive(Clone)]
+pub enum SKernelArg {
+    Param(String, Type),
+    Buffer(String),
+    BufArg(String,String), // BufArg(mem buf, kernel buf)
+}
+
+impl<'a> From<&KernelArg<'a>> for SKernelArg {
+    fn from(n: &KernelArg<'a>) -> Self {
+        match n {
+            KernelArg::Param(s,e) => SKernelArg::Param((*s).into(),*e),
+            KernelArg::Buffer(s) => SKernelArg::Buffer((*s).into()),
+            KernelArg::BufArg(s,ss) => SKernelArg::BufArg((*s).into(),(*ss).into()),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum BufferConstructor {
     Len(Type,usize), // Len(repeated value, len)
     Data(VecType),
@@ -19,11 +36,46 @@ pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
 }
 
 #[derive(Clone)]
+pub enum SKernelConstructor {
+    Param(String, EmptyType),
+    Buffer(String, EmptyType),
+    ConstBuffer(String, EmptyType),}
+
+impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
+    fn from(n: &KernelConstructor<'a>) -> Self {
+        match n {
+            KernelConstructor::Param(s,e) => SKernelConstructor::Param((*s).into(),*e),
+            KernelConstructor::Buffer(s,e) => SKernelConstructor::Buffer((*s).into(),*e),
+            KernelConstructor::ConstBuffer(s,e) => SKernelConstructor::ConstBuffer((*s).into(),*e),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     Param(&'a str, EmptyType),
     Ptr(&'a str, EmptyType),
     GlobalPtr(&'a str, EmptyType),
     ConstPtr(&'a str, EmptyType),
+}
+
+#[derive(Clone)]
+pub enum SFunctionConstructor {
+    Param(String, EmptyType),
+    Ptr(String, EmptyType),
+    GlobalPtr(String, EmptyType),
+    ConstPtr(String, EmptyType),
+}
+
+impl<'a> From<&FunctionConstructor<'a>> for SFunctionConstructor {
+    fn from(n: &FunctionConstructor<'a>) -> Self {
+        match n {
+            FunctionConstructor::Param(s,e) => SFunctionConstructor::Param((*s).into(),*e),
+            FunctionConstructor::Ptr(s,e) => SFunctionConstructor::Ptr((*s).into(),*e),
+            FunctionConstructor::GlobalPtr(s,e) => SFunctionConstructor::GlobalPtr((*s).into(),*e),
+            FunctionConstructor::ConstPtr(s,e) => SFunctionConstructor::ConstPtr((*s).into(),*e),
+        }
+    }
 }
 
 use std::any::{Any,type_name};
@@ -79,7 +131,7 @@ macro_rules! gen_types {
             $($case(ocl::Buffer<$case_t>),)+
         }
 
-        #[derive(Debug,Clone)]
+        #[derive(Debug,Clone,Copy)]
         pub enum $nametype {
             $($case($case_t),)+
         }
@@ -104,7 +156,7 @@ macro_rules! gen_types {
         impl_types!($namevectype, $($case|$case_t|$case_ocl) +);
 
 
-        #[derive(Debug,Clone)]
+        #[derive(Debug,Clone,Copy)]
         pub enum $nameemptytype {
             $($case,)+
         }

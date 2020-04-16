@@ -21,7 +21,7 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub fn builder<'a>() -> ocl::Result<HandlerBuilder<'a>> {
+    pub fn builder() -> ocl::Result<HandlerBuilder> {
         HandlerBuilder::new()
     }
 

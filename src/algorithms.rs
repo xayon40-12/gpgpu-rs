@@ -1,4 +1,4 @@
-use crate::{Handler,kernels::Kernel};
+use crate::{Handler,kernels::{Kernel,SKernel}};
 use crate::Dim::{self,*};
 use crate::descriptors::KernelArg::*;
 use crate::descriptors::{Type::*,VecType};
@@ -20,6 +20,23 @@ pub struct Algorithm<'a> { //TODO use one SC for each &'a str
 }
 
 #[derive(Clone)]
+pub struct SAlgorithm {
+    pub name: String,
+    pub callback: Callback,
+    pub needed: Vec<SNeeded>,
+}
+
+impl<'a> From<&Algorithm<'a>> for SAlgorithm {
+    fn from(f: &Algorithm<'a>) -> Self {
+        SAlgorithm {
+            name: f.name.into(),
+            callback: f.callback.clone(),
+            needed: f.needed.iter().map(|i| i.into()).collect(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Needed<'a> { //TODO use one SC for each &'a str
     KernelName(&'a str),
     AlgorithmName(&'a str),
@@ -27,6 +44,23 @@ pub enum Needed<'a> { //TODO use one SC for each &'a str
 }
 use Needed::*;
 use crate::functions::Needed::*;
+
+#[derive(Clone)]
+pub enum SNeeded {
+    KernelName(String),
+    AlgorithmName(String),
+    NewKernel(SKernel)
+}
+
+impl<'a> From<&Needed<'a>> for SNeeded {
+    fn from(n: &Needed<'a>) -> Self {
+        match n {
+            Needed::KernelName(n) => SNeeded::KernelName((*n).into()),
+            Needed::AlgorithmName(n) => SNeeded::AlgorithmName((*n).into()),
+            Needed::NewKernel(k) => SNeeded::NewKernel(k.into()),
+        }
+    }
+}
 
 macro_rules! ifs {
     ($bufs:ident, $alg:expr, $num:literal) => {
@@ -301,7 +335,7 @@ macro_rules! algo_gen {
 
 }
 
-pub fn algorithms<'a>() -> HashMap<&'static str,Algorithm<'a>> {
+pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
     vec![
         // sum each elements.
         algo_gen!(logreduce "sum",F64|f64 U32|U32_3,"dst[id] = src[id]+src[idp];"),
@@ -380,7 +414,7 @@ fn C(n: usize, k: usize) -> usize {
 }
 
 // Only for D1
-pub fn moments_to_cumulants<'a>(moments: &'a [f64]) -> Vec<f64> {
+pub fn moments_to_cumulants(moments: &[f64]) -> Vec<f64> {
     let len = moments.len();
     let mut cumulants = vec![0.0; len];
     for n in 0..len {

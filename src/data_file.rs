@@ -1,4 +1,4 @@
-use crate::functions::Function;
+use crate::functions::{Function,SFunction};
 use crate::descriptors::{EmptyType::F64,FunctionConstructor::*};
 
 // each steps length for each respective dimensions must be constant.
@@ -15,7 +15,7 @@ pub enum Format<'a> {
 }
 
 impl DataFile {
-    pub fn parse<'a>(from: Format<'a>) -> DataFile {
+    pub fn parse(from: Format) -> DataFile {
         match from {
             Format::Column(f) => from_column(f),
         }
@@ -29,7 +29,7 @@ impl DataFile {
         self.data[id]
     }
 
-    pub fn to_function<'a>(&self, name: &'a str, huge: bool) -> Function<'a> {
+    pub fn to_function(&self, name: &str, huge: bool) -> SFunction {
         self.gen_func(name, format!("
             ulong idx[{len}];
             for(int i = 0; i<{len}; i++) {{
@@ -63,7 +63,7 @@ impl DataFile {
         ys[0]
     }
 
-    pub fn to_function_interpolated<'a>(&self, name: &'a str, huge: bool) -> Function<'a> {
+    pub fn to_function_interpolated(&self, name: &str, huge: bool) -> SFunction {
         self.gen_func(name, format!("
             ulong xs[{len}];
             double xsd[{len}];
@@ -90,7 +90,7 @@ impl DataFile {
         len = self.dx.len()), huge)
     }
 
-    pub fn gen_func<'a>(&self, name: &'a str, content: String, huge: bool) -> Function<'a> {
+    pub fn gen_func(&self, name: &str, content: String, huge: bool) -> SFunction {
         if huge {
             let src = format!("
                 double dx[] = {{{}}};
@@ -104,13 +104,13 @@ impl DataFile {
             self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             content);
 
-            Function {
-                name: name.into(),
+            (&Function {
+                name: name,
                 args: vec![Ptr("coords",F64),GlobalPtr("data",F64)],
                 ret_type: Some(F64),
-                src,
+                src: &src,
                 needed: vec![],
-            }
+            }).into()
         } else {
             let src = format!("
                 double dx[] = {{{}}};
@@ -126,18 +126,18 @@ impl DataFile {
             self.data.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             content);
 
-            Function {
-                name: name.into(),
+            (&Function {
+                name: name,
                 args: vec![Ptr("coords",F64)],
                 ret_type: Some(F64),
-                src,
+                src: &src,
                 needed: vec![],
-            }
+            }).into()
         }
     }
 }
 
-fn from_column<'a>(text: &'a str) -> DataFile {
+fn from_column(text: &str) -> DataFile {
     let mut tab = text.trim().lines()
         .map(|l| l.trim())
         .filter(|l| l.len()>0 && !l.starts_with('#') && !l.starts_with("//"))

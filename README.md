@@ -16,6 +16,7 @@ Global:
 - [x] file loading (GPU) max elements: 8192  
 - [x] file loading interpolation (high extrema excluded)  
 - [x] huge file loading (GPU)  
+- [ ] Serialize/Deserialize for kernels and functions
 
 Kernels:  
 - [x] component wise operators buffer/buffer  

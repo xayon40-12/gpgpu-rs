@@ -15,7 +15,7 @@ fn simple_main() -> gpgpu::Result<()> {
     let param_name = String::from("p");
     let mut gpu = Handler::builder()?
         .add_buffer("u", Len(F64(0.0), num))
-        .create_kernel(Kernel {
+        .create_kernel(&Kernel {
             name: "_main",
             src: &src,
             args: vec![KC::Buffer("u",EmT::F64),KC::Param(&param_name,EmT::F32)],
@@ -294,7 +294,7 @@ fn data_file() -> gpgpu::Result<()> {
     let mut gpu = Handler::builder()?
         .load_data("data",Format::Column(&file),false,Some("databuf"))
         .add_buffer("u", Len(F64(0.0),x*y*z))
-        .create_kernel(Kernel {
+        .create_kernel(&Kernel {
             name: "kern",
             args: vec![KC::Buffer("u",EmT::F64),KC::Buffer("databuf",EmT::F64)],
             src: "
@@ -342,7 +342,7 @@ fn data_file_interpolated() -> gpgpu::Result<()> {
     let mut gpu = Handler::builder()?
         .load_data("data",Format::Column(&file),true,None)
         .add_buffer("u", Len(F64(0.0),x*y*z))
-        .create_kernel(Kernel {
+        .create_kernel(&Kernel {
             name: "kern",
             args: vec![KC::Buffer("u",EmT::F64)],
             src: &format!("
@@ -387,7 +387,7 @@ fn function_test() -> gpgpu::Result<()> {
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VecType::F64((0..num).map(|i| i as f64).collect())))
         .load_function("swap")
-        .create_kernel(Kernel {
+        .create_kernel(&Kernel {
             name: "_main",
             src: "swap(&u[x*2],&u[x*2+1]);",
             args: vec![KC::Buffer("u",EmT::F64)],

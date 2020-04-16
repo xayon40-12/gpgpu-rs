@@ -1,7 +1,7 @@
-use crate::descriptors::KernelConstructor::{self,*};
+use crate::descriptors::{KernelConstructor::{self,*},SKernelConstructor};
 use crate::descriptors::EmptyType::*;
 use std::collections::HashMap;
-use crate::functions::Needed::{self,*};
+use crate::functions::{Needed::{self,*},SNeeded};
 
 #[derive(Clone)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
@@ -9,6 +9,25 @@ pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub args: Vec<KernelConstructor<'a>>,
     pub src: &'a str,
     pub needed: Vec<Needed<'a>>,
+}
+
+#[derive(Clone)]
+pub struct SKernel {
+    pub name: String,
+    pub args: Vec<SKernelConstructor>,
+    pub src: String,
+    pub needed: Vec<SNeeded>,
+}
+
+impl<'a> From<&Kernel<'a>> for SKernel {
+    fn from(f: &Kernel<'a>) -> Self {
+        SKernel {
+            name: f.name.into(),
+            args: f.args.iter().map(|i| i.into()).collect(),
+            src: f.src.into(),
+            needed: f.needed.iter().map(|i| i.into()).collect(),
+        }
+    }
 }
 
 macro_rules! random {
@@ -72,7 +91,7 @@ macro_rules! random {
     };
 }
 
-pub fn kernels<'a>() -> HashMap<&'static str,Kernel<'a>> {
+pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
     vec![
         // *************************************** RANDOM ***************************************
         Kernel {

@@ -2,24 +2,24 @@ use ocl::ProQue;
 use ocl::prm::*;
 use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
-use crate::kernels::{self,Kernel};
-use crate::algorithms::{self,Algorithm,Needed,Callback};
-use crate::functions::{self,Function,Needed as FNeeded};
+use crate::kernels::{self,Kernel,SKernel};
+use crate::algorithms::{self,Algorithm,SAlgorithm,SNeeded,Callback};
+use crate::functions::{self,Function,SFunction,SNeeded as FSNeeded};
 use crate::data_file::{DataFile,Format};
 
-pub struct HandlerBuilder<'a> {
-    available_kernels: HashMap<&'static str,Kernel<'a>>,
-    available_algorithms: HashMap<&'static str,Algorithm<'a>>,
-    available_functions: HashMap<String,Function<'a>>,
-    kernels: HashMap<&'a str,(Kernel<'a>,&'a str)>,
-    algorithms: HashMap<&'a str,(Callback,&'a str)>,
-    functions: HashMap<String,(Function<'a>,String)>,
+pub struct HandlerBuilder {
+    available_kernels: HashMap<&'static str,Kernel<'static>>,
+    available_algorithms: HashMap<&'static str,Algorithm<'static>>,
+    available_functions: HashMap<&'static str,Function<'static>>,
+    kernels: HashMap<String,(SKernel,String)>,
+    algorithms: HashMap<String,(Callback,String)>,
+    functions: HashMap<String,(SFunction,String)>,
     buffers: Vec<(String,BufferConstructor)>,
-    data: HashMap<&'a str, DataFile>,
+    data: HashMap<String, DataFile>,
 }
 
-impl<'a> HandlerBuilder<'a> {
-    pub fn new() -> ocl::Result<HandlerBuilder<'a>> {
+impl HandlerBuilder {
+    pub fn new() -> ocl::Result<HandlerBuilder> {
         Ok(HandlerBuilder {
             available_kernels: kernels::kernels(),
             available_algorithms: algorithms::algorithms(),
@@ -45,22 +45,24 @@ impl<'a> HandlerBuilder<'a> {
         hand
     }
 
-    pub fn create_function(self, function: Function<'a>) -> Self {
+    pub fn create_function(self, function: impl Into<SFunction>) -> Self {
+        let function = function.into();
         let name = function.name.clone().into();
         self.add_function(function, Some(name),None)
     }
 
     pub fn load_function(self, name: &str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function,None,None)
+        self.add_function(&function,None,None)
     }
 
-    pub fn load_function_named(self, name: &str, as_name: &'a str) -> Self {
+    pub fn load_function_named(self, name: &str, as_name: &str) -> Self {
         let function = self.available_functions.get(name).expect(&format!("function \"{}\" not found",name)).clone();
-        self.add_function(function,Some(as_name.into()),None)
+        self.add_function(&function,Some(as_name.into()),None)
     }
     
-    fn add_function(mut self, mut function: Function<'a>, as_name: Option<String>, from: Option<String>) -> Self{
+    fn add_function(mut self, function: impl Into<SFunction>, as_name: Option<String>, from: Option<String>) -> Self{
+        let mut function = function.into();
         let name = function.name.clone();
         let needed = function.needed;
         function.needed = vec![];
@@ -72,7 +74,7 @@ impl<'a> HandlerBuilder<'a> {
                 self.functions.insert(as_name.into(),(function,"User".into()));
             }
         } else if let Some((_,from)) = self.functions.get(&name) {
-            if from == &"User" {
+            if from == "User" {
                 panic!("Cannot add two functions with the same name \"{}\", already added by User.",name);
             } else {
                 return self;
@@ -82,8 +84,8 @@ impl<'a> HandlerBuilder<'a> {
         }
         for n in needed {
             self = match n {
-                FNeeded::FuncName(name) => self.load_function(&name),
-                FNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("function \"{}\"",name))),
+                FSNeeded::FuncName(name) => self.load_function(&name),
+                FSNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("function \"{}\"",name))),
             }
         }
 
@@ -91,101 +93,107 @@ impl<'a> HandlerBuilder<'a> {
         self
     }
 
-    pub fn create_kernel(self, kernel: Kernel<'a>) -> Self {
-        let name = kernel.name;
+    pub fn create_kernel(self, kernel: impl Into<SKernel>) -> Self {
+        let kernel = kernel.into();
+        let name = kernel.name.clone();
         self.add_kernel(kernel, Some(name),None)
     }
 
     pub fn load_kernel(self, name: &str) -> Self {
         let kernel = self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone();
-        self.add_kernel(kernel,None,None)
+        self.add_kernel(&kernel,None,None)
     }
 
-    pub fn load_kernel_named(self, name: &str, as_name: &'a str) -> Self {
+    pub fn load_kernel_named(self, name: &str, as_name: &str) -> Self {
         let kernel = self.available_kernels.get(name).expect(&format!("kernel \"{}\" not found",name)).clone();
-        self.add_kernel(kernel,Some(as_name),None)
+        self.add_kernel(&kernel,Some(as_name.into()),None)
     }
     
-    fn add_kernel(mut self, mut kernel: Kernel<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
-        let name = kernel.name;
+    fn add_kernel(mut self, kernel: impl Into<SKernel>, as_name: Option<String>, from_alg: Option<String>) -> Self{
+        let mut kernel = kernel.into();
+        let name = kernel.name.clone();
         let needed = kernel.needed;
         kernel.needed = vec![];
         if let Some(as_name) = as_name {
-            if let Some((_,from)) = self.kernels.get(as_name) {
+            if let Some((_,from)) = self.kernels.get(&as_name) {
                 panic!("Cannot add two kernels with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
             } else {
-                self.kernels.insert(as_name,(kernel,"User"));
+                self.kernels.insert(as_name,(kernel,"User".into()));
             }
-        } else if let Some((_,from)) = self.kernels.get(name) {
-            if from == &"User" {
+        } else if let Some((_,from)) = self.kernels.get(&name) {
+            if from == "User" {
                 panic!("Cannot add two kernels with the same name \"{}\", already added by User.",name);
             } else {
                 return self;
             }
         } else {
-            self.kernels.insert(name,(kernel,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+            self.kernels.insert(name.clone(),(kernel,from_alg.unwrap_or("".into())));//TODO verify if empty string here causes problem
         }
         for n in needed {
             self = match n {
-                FNeeded::FuncName(name) => self.load_function(&name),
-                FNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("kernel \"{}\"",name))),
+                FSNeeded::FuncName(name) => self.load_function(&name),
+                FSNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("kernel \"{}\"",name))),
             }
         }
 
         self
     }
 
-    pub fn create_algorithm(self, algorithm: Algorithm<'a>) -> Self {
-        let name = algorithm.name;
+    pub fn create_algorithm(self, algorithm: impl Into<SAlgorithm>) -> Self {
+        let algorithm = algorithm.into();
+        let name = algorithm.name.clone();
         self.add_algorithm(algorithm, Some(name), None)
     }
 
     pub fn load_algorithm(self, name: &str) -> Self {
         let alg = self.available_algorithms.get(name).expect(&format!("algorithm \"{}\" not found",name)).clone();
-        self.add_algorithm(alg, None, None)
+        self.add_algorithm(&alg, None, None)
     }
     
     pub fn load_all_algorithms(mut self) -> Self {
         for alg in self.available_algorithms.values().map(|a| a.clone()).collect::<Vec<_>>() {
-            self = self.add_algorithm(alg, None, None);
+            self = self.add_algorithm(&alg, None, None);
         }
 
         self
     }
 
-    pub fn load_algorithm_named(self, name: &str, as_name: &'a str) -> Self {
+    pub fn load_algorithm_named(self, name: &str, as_name: &str) -> Self {
         assert_ne!(name, as_name, "Names must be different for method \"load_algorithm_named\", given name \"{}\"", name);
         let alg = self.available_algorithms.get(name).expect(&format!("algorithm \"{}\" not found",name)).clone();
-        self.add_algorithm(alg, Some(as_name), None)
+        self.add_algorithm(&alg, Some(as_name.into()), None)
     }
     
-    fn add_algorithm(mut self, alg: Algorithm<'a>, as_name: Option<&'a str>, from_alg: Option<&'a str>) -> Self{
-        let Algorithm { name,callback,needed } = alg;
-        if let Some(as_name) = as_name {
-            if let Some((_,from)) = self.algorithms.get(as_name) {
+    fn add_algorithm(mut self, alg: impl Into<SAlgorithm>, as_name: Option<String>, from_alg: Option<String>) -> Self{
+        let alg = alg.into();
+        let SAlgorithm { name,callback,needed } = alg;
+        if let Some(as_name) = as_name.clone() {
+            if let Some((_,from)) = self.algorithms.get(&as_name) {
                 panic!("Cannot add two algorithms with the same name \"{}\", already added by algorithm \"{}\".",as_name,from);
             } else {
-                self.algorithms.insert(as_name,(callback,"User"));
+                self.algorithms.insert(as_name,(callback,"User".into()));
             }
-        } else if let Some((_,from)) = self.algorithms.get(name) {
-            if from == &"User" {
+        } else if let Some((_,from)) = self.algorithms.get(&name) {
+            if from == "User" {
                 panic!("Cannot add two algorithms with the same name \"{}\", already added by User.",name);
             } else {
                 return self;
             }
         } else {
-            self.algorithms.insert(name,(callback,from_alg.unwrap_or("")));//TODO verify if empty string here causes problem
+            self.algorithms.insert(name.clone(),(callback,from_alg.unwrap_or("".into())));//TODO verify if empty string here causes problem
         }
         for n in needed {
             self = match n {
-                Needed::NewKernel(k) => self.create_kernel(k),
-                Needed::KernelName(n) => {
-                    let kernel = self.available_kernels.get(n).expect(&format!("kernel \"{}\" not found",n)).clone();
-                    self.add_kernel(kernel,None,Some(as_name.unwrap_or(name)))
+                SNeeded::NewKernel(k) => self.create_kernel(k),
+                SNeeded::KernelName(n) => {
+                    let s: &str = &n;
+                    let kernel = self.available_kernels.get(s).expect(&format!("kernel \"{}\" not found",n)).clone();
+                    self.add_kernel(&kernel,None,Some(as_name.clone().unwrap_or(name.clone())))
                 },
-                Needed::AlgorithmName(n) => {
-                    let alg = self.available_algorithms.get(n).expect(&format!("algorithm \"{}\" not found",n)).clone();
-                    self.add_algorithm(alg, None, Some(as_name.unwrap_or(name)))
+                SNeeded::AlgorithmName(n) => {
+                    let s: &str = &n;
+                    let alg = self.available_algorithms.get(s).expect(&format!("algorithm \"{}\" not found",n)).clone();
+                    self.add_algorithm(&alg, None, Some(as_name.clone().unwrap_or(name.clone())))
                 },
             }
         }
@@ -196,7 +204,7 @@ impl<'a> HandlerBuilder<'a> {
     pub fn build(self) -> ocl::Result<super::Handler> {
         let mut prog = String::new();
 
-        for (name,(Function {src,args,ret_type,..},..)) in &self.functions {
+        for (name,(SFunction {src,args,ret_type,..},..)) in &self.functions {
             prog += &if let Some(ret) = ret_type {
                 format!("\ninline {} {}(\n",ret.type_name_ocl(),name)
             } else {
@@ -204,13 +212,13 @@ impl<'a> HandlerBuilder<'a> {
             };
             for a in args {
                 match a {
-                    FunctionConstructor::Param(n,t) => 
+                    SFunctionConstructor::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    FunctionConstructor::Ptr(n,t) =>
+                    SFunctionConstructor::Ptr(n,t) =>
                         prog += &format!("{} *{},", t.type_name_ocl(), n),
-                    FunctionConstructor::GlobalPtr(n,t) =>
+                    SFunctionConstructor::GlobalPtr(n,t) =>
                         prog += &format!("__global {} *{},", t.type_name_ocl(), n),
-                    FunctionConstructor::ConstPtr(n,t) =>
+                    SFunctionConstructor::ConstPtr(n,t) =>
                         prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
                 };
             }
@@ -220,15 +228,15 @@ impl<'a> HandlerBuilder<'a> {
             prog += "\n}\n";
         }
 
-        for (name,(Kernel {src,args,..},..)) in &self.kernels {
+        for (name,(SKernel {src,args,..},..)) in &self.kernels {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
-                    KernelConstructor::Param(n,t) => 
+                    SKernelConstructor::Param(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    KernelConstructor::Buffer(n,t) =>
+                    SKernelConstructor::Buffer(n,t) =>
                         prog += &format!("__global {} *{},", t.type_name_ocl(), n),
-                    KernelConstructor::ConstBuffer(n,t) =>
+                    SKernelConstructor::ConstBuffer(n,t) =>
                         prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
                 };
             }
@@ -268,23 +276,23 @@ impl<'a> HandlerBuilder<'a> {
         }
 
         let mut kernels = HashMap::new();
-        for (name,(Kernel {args,..},..)) in self.kernels {
+        for (name,(SKernel {args,..},..)) in self.kernels {
             let mut map = BTreeMap::new();
-            let mut kernel = pq.kernel_builder(name);
+            let mut kernel = pq.kernel_builder(name.clone());
             let mut id = 0;
             for a in args {
                 match a {
-                    KernelConstructor::Param(n,v) => {
+                    SKernelConstructor::Param(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
                         each_default!(param,v,kernel)
                     },
-                    KernelConstructor::Buffer(n,b) | KernelConstructor::ConstBuffer(n,b) => {
+                    SKernelConstructor::Buffer(n,b) | SKernelConstructor::ConstBuffer(n,b) => {
                         map.insert(n.to_string(),id); id += 1;
                         each_default!(buffer,b,kernel)
                     }
                 };
             }
-            kernels.insert(name.to_string(),(kernel.build()?,map));
+            kernels.insert(name,(kernel.build()?,map));
         }
 
         let algorithms = self.algorithms.into_iter().map(|(s,(c,_))| (s.to_string(),c)).collect();
@@ -300,13 +308,13 @@ impl<'a> HandlerBuilder<'a> {
         })
     }
 
-    pub fn load_data<'b>(mut self, name: &'a str, data: Format<'b>, interpolated: bool, huge_file_buf_name: Option<&'b str>) -> Self {
+    pub fn load_data(mut self, name: &str, data: Format, interpolated: bool, huge_file_buf_name: Option<&str>) -> Self {
         let data = DataFile::parse(data);
         self = self.create_function(if interpolated { data.to_function_interpolated(name, huge_file_buf_name.is_some()) } else { data.to_function(name, huge_file_buf_name.is_some()) });
         if let Some(bufname) = huge_file_buf_name {
             self = self.add_buffer(bufname, crate::descriptors::BufferConstructor::Data(data.data.clone().into()));
         }
-        self.data.insert(name,data);
+        self.data.insert(name.into(),data);
         self
     }
 

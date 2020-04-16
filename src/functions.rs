@@ -1,75 +1,111 @@
-use crate::descriptors::FunctionConstructor::{self,*};
+use crate::descriptors::{FunctionConstructor::{self,*},SFunctionConstructor};
 use crate::descriptors::EmptyType::{*,self};
 use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Function<'a> {
-    pub name: String,
+    pub name: &'a str,
     pub args: Vec<FunctionConstructor<'a>>,
     pub ret_type: Option<EmptyType>,
-    pub src: String,
+    pub src: &'a str,
     pub needed: Vec<Needed<'a>>,
 }
 
 #[derive(Clone)]
+pub struct SFunction {
+    pub name: String,
+    pub args: Vec<SFunctionConstructor>,
+    pub ret_type: Option<EmptyType>,
+    pub src: String,
+    pub needed: Vec<SNeeded>,
+}
+
+impl<'a> From<&Function<'a>> for SFunction {
+    fn from(f: &Function<'a>) -> Self {
+        SFunction {
+            name: f.name.into(),
+            args: f.args.iter().map(|i| i.into()).collect(),
+            ret_type: f.ret_type,
+            src: f.src.into(),
+            needed: f.needed.iter().map(|i| i.into()).collect(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Needed<'a> {
-    FuncName(String),
+    FuncName(&'a str),
     CreateFunc(Function<'a>)
 }
 
+#[derive(Clone)]
+pub enum SNeeded {
+    FuncName(String),
+    CreateFunc(SFunction)
+}
 
-pub fn functions<'a>() -> HashMap<String,Function<'a>> {
+impl<'a> From<&Needed<'a>> for SNeeded {
+    fn from(n: &Needed<'a>) -> Self {
+        match n {
+            Needed::FuncName(n) => SNeeded::FuncName((*n).into()),
+            Needed::CreateFunc(f) => SNeeded::CreateFunc(f.into()),
+        }
+    }
+}
+
+
+pub fn functions() -> HashMap<&'static str,Function<'static>> {
     vec![
         Function {
-            name: "swap".into(),
+            name: "swap",
             args: vec![GlobalPtr("a",F64),GlobalPtr("b",F64)],
             ret_type: None,
-            src: "double tmp = *a; *a = *b; *b = tmp;".into(),
+            src: "double tmp = *a; *a = *b; *b = tmp;",
             needed: vec![],
         },
         Function {
-            name: "c_sqrmod".into(),
+            name: "c_sqrmod",
             args: vec![Param("src",F64_2)],
             ret_type: Some(F64),
-            src: "return src.x*src.x + src.y*src.y;".into(),
+            src: "return src.x*src.x + src.y*src.y;",
             needed: vec![],
         },
         Function {
-            name: "c_mod".into(),
+            name: "c_mod",
             args: vec![Param("src",F64_2)],
             ret_type: Some(F64),
-            src: "return sqrt(src.x*src.x + src.y*src.y);".into(),
+            src: "return sqrt(src.x*src.x + src.y*src.y);",
             needed: vec![],
         },
         Function {
-            name: "c_conj".into(),
+            name: "c_conj",
             args: vec![Param("a",F64_2)],
             ret_type: Some(F64_2),
-            src: "return (double2)(a.x, -a.y);".into(),
+            src: "return (double2)(a.x, -a.y);",
             needed: vec![],
         },
         Function {
-            name: "c_times".into(),
+            name: "c_times",
             args: vec![Param("a",F64_2),Param("b",F64_2)],
             ret_type: Some(F64_2),
-            src: "return (double2)(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x);".into(),
+            src: "return (double2)(a.x*b.x-a.y*b.y, a.x*b.y+a.y*b.x);",
             needed: vec![],
         },
         Function {
-            name: "c_divides".into(),
+            name: "c_divides",
             args: vec![Param("a",F64_2),Param("b",F64_2)],
             ret_type: Some(F64_2),
-            src: "return c_times(a,c_conj(b))/c_sqrmod(b);".into(),
+            src: "return c_times(a,c_conj(b))/c_sqrmod(b);",
             needed: vec![],
         },
         Function {
-            name: "c_exp".into(),
+            name: "c_exp",
             args: vec![Param("x",F64)],
             ret_type: Some(F64_2),
             src: "
             double c, s = sincos(x,&c);
-            return (double2)(c,s);".into(),
+            return (double2)(c,s);",
             needed: vec![],
         },
-    ].into_iter().map(|f| (f.name.clone(),f)).collect()
+    ].into_iter().map(|f| (f.name,f)).collect()
 }

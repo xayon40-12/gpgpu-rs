@@ -1,5 +1,4 @@
 use ocl::ProQue;
-use crate::types::*;
 use std::collections::{HashMap,BTreeMap};
 use crate::descriptors::*;
 use crate::kernels::{self,Kernel,SKernel};
@@ -32,17 +31,9 @@ impl HandlerBuilder {
         })
     }
 
-    pub fn add_buffer<T: Type, V: VecType>(mut self, name: &str, desc: BufferConstructor<T,V>) -> Self {
-        self.buffers.push((name.to_string(),desc));
+    pub fn add_buffer(mut self, name: &str, desc: impl Into<SBufferConstructor>) -> Self {
+        self.buffers.push((name.to_string(),desc.into()));
         self
-    }
-
-    pub fn add_buffers<T: Type, V: VecType>(self, buffers: Vec<(&str,BufferConstructor<T,V>)>) -> Self {
-        let mut hand = self;
-        for (name,desc) in buffers {
-            hand = hand.add_buffer(name,desc);
-        }
-        hand
     }
 
     pub fn create_function(self, function: impl Into<SFunction>) -> Self {
@@ -257,18 +248,10 @@ impl HandlerBuilder {
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
             let existing = match &desc {
-                BufferConstructor::Len(val,len) => buffers.insert(name.clone(),
-                    iner_each_gen!(val,Type BufType,val,
-                        pq.buffer_builder()
-                        .len(*len)
-                        .fill_val(*val)
-                        .build()?)),
-                BufferConstructor::Data(data) => buffers.insert(name.clone(),
-                    iner_each_gen!(data,VecType BufType,data,
-                        pq.buffer_builder()
-                       .len(data.len())
-                       .copy_host_slice(data)
-                       .build()?))
+                SBufferConstructor::Len(val,len) => buffers.insert(name.clone(),
+                    val.gen_buffer(&pq, *len)?),
+                SBufferConstructor::Data(data) => buffers.insert(name.clone(),
+                    data.gen_buffer(&pq)?),
             };
             if existing.is_some() {
                 panic!("Cannot add two buffers with the same name \"{}\"",name)
@@ -284,11 +267,11 @@ impl HandlerBuilder {
                 match a {
                     SKernelConstructor::Param(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
-                        each_default!(param,v,kernel)
+                        v.default_param(&mut kernel);
                     },
                     SKernelConstructor::Buffer(n,b) | SKernelConstructor::ConstBuffer(n,b) => {
                         map.insert(n.to_string(),id); id += 1;
-                        each_default!(buffer,b,kernel)
+                        b.default_buffer(&mut kernel);
                     }
                 };
             }
@@ -312,7 +295,7 @@ impl HandlerBuilder {
         let data = DataFile::parse(data);
         self = self.create_function(if interpolated { data.to_function_interpolated(name, huge_file_buf_name.is_some()) } else { data.to_function(name, huge_file_buf_name.is_some()) });
         if let Some(bufname) = huge_file_buf_name {
-            self = self.add_buffer(bufname, crate::descriptors::BufferConstructor::Data(data.data.clone().into()));
+            self = self.add_buffer(bufname, SBufferConstructor::Data(data.data.clone().into()));
         }
         self.data.insert(name.into(),data);
         self

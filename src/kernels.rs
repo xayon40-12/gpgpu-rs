@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::functions::{Needed::{self,*},SNeeded};
 use serde::{Serialize,Deserialize};
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub name: &'a str,
     pub args: Vec<KernelConstructor<'a>>,
@@ -12,7 +12,7 @@ pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub needed: Vec<Needed<'a>>,
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Serialize,Deserialize)]
 pub struct SKernel {
     pub name: String,
     pub args: Vec<SKernelConstructor>,
@@ -97,13 +97,13 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         // *************************************** RANDOM ***************************************
         Kernel {
             name: "philox2x64_10",
-            args: vec![Buffer("src",U64)],
+            args: vec![Buffer("src",&U64)],
             src: random!(philox2x64_10),
             needed: vec![],
         },
         Kernel {
             name: "philox2x64_10_unit",
-            args: vec![Buffer("src",U64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U64),Buffer("dst",&F64)],
             src: random!(philox2x64_10,"
                 for(uint i = 0;i<l;i++)
                     dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);
@@ -112,7 +112,7 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         },
         Kernel {
             name: "philox2x64_10_normal",
-            args: vec![Buffer("src",U64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U64),Buffer("dst",&F64)],
             src: random!(philox2x64_10,"
                 for(uint i = 0;i<l;i+=2) {
                     double u1 = (double)(src[x*l+i]>>11)/(1l << 53);
@@ -125,13 +125,13 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         },
         Kernel {
             name: "philox4x64_10",
-            args: vec![Buffer("src",U64)],
+            args: vec![Buffer("src",&U64)],
             src: random!(philox4x64_10),
             needed: vec![],
         },
         Kernel {
             name: "philox4x64_10_unit",
-            args: vec![Buffer("src",U64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U64),Buffer("dst",&F64)],
             src: random!(philox4x64_10,"
                 for(uint i = 0;i<l;i++)
                     dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);
@@ -140,7 +140,7 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         },
         Kernel {
             name: "philox4x64_10_normal",
-            args: vec![Buffer("src",U64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U64),Buffer("dst",&F64)],
             src: random!(philox4x64_10,"
                 for(uint i = 0;i<l;i+=2) {
                     double u1 = (double)(src[x*l+i]>>11)/(1l << 53);
@@ -153,13 +153,13 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         },
         Kernel {
             name: "philox4x32_10",
-            args: vec![Buffer("src",U32)],
+            args: vec![Buffer("src",&U32)],
             src: random!(philox4x32_10),
             needed: vec![],
         },
         Kernel {
             name: "philox4x32_10_unit",
-            args: vec![Buffer("src",U32),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U32),Buffer("dst",&F64)],
             src: random!(philox4x32_10,"
                 const uint l2 = l/2;
                 for(uint i = 0;i<l2;i++)
@@ -169,7 +169,7 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
         },
         Kernel {
             name: "philox4x32_10_normal",
-            args: vec![Buffer("src",U32),Buffer("dst",F64)],
+            args: vec![Buffer("src",&U32),Buffer("dst",&F64)],
             src: random!(philox4x32_10,"
                 const uint l2 = l/2;
                 for(uint i = 0;i<l2;i+=2) {
@@ -186,109 +186,109 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
 
         Kernel {
             name: "plus",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![Buffer("a",&F64),Buffer("b",&F64),Buffer("dst",&F64)],
             src: "dst[x] = a[x]+b[x];",
             needed: vec![],
         },
         Kernel {
             name: "minus",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![Buffer("a",&F64),Buffer("b",&F64),Buffer("dst",&F64)],
             src: "dst[x] = a[x]-b[x];",
             needed: vec![],
         },
         Kernel {
             name: "times",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![Buffer("a",&F64),Buffer("b",&F64),Buffer("dst",&F64)],
             src: "dst[x] = a[x]*b[x];",
             needed: vec![],
         },
         Kernel {
             name: "divides",
-            args: vec![Buffer("a",F64),Buffer("b",F64),Buffer("dst",F64)],
+            args: vec![Buffer("a",&F64),Buffer("b",&F64),Buffer("dst",&F64)],
             src: "dst[x] = a[x]/b[x];",
             needed: vec![],
         },
         Kernel {
             name: "cplus",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64),Param("c",&F64),Buffer("dst",&F64)],
             src: "dst[x] = src[x]+c;",
             needed: vec![],
         },
         Kernel {
             name: "cminus",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64),Param("c",&F64),Buffer("dst",&F64)],
             src: "dst[x] = src[x]-c;",
             needed: vec![],
         },
         Kernel {
             name: "ctimes",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64),Param("c",&F64),Buffer("dst",&F64)],
             src: "dst[x] = src[x]*c;",
             needed: vec![],
         },
         Kernel {
             name: "cdivides",
-            args: vec![Buffer("src",F64),Param("c",F64),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64),Param("c",&F64),Buffer("dst",&F64)],
             src: "dst[x] = src[x]/c;",
             needed: vec![],
         },
         Kernel {
             name: "move",
-            args: vec![Buffer("src",F64),Buffer("dst",F64),Param("size",U32_3),Param("offset",U32)],
+            args: vec![Buffer("src",&F64),Buffer("dst",&F64),Param("size",&U32_4),Param("offset",&U32)],
             src: "dst[x+x_size*(y+y_size*z) + offset] = src[x+size.x*(y+size.y*z)];",
             needed: vec![],
         },
         Kernel {
             name: "smove",
-            args: vec![Buffer("src",F64),Buffer("dst",F64),Param("size",U32_3),Param("offset",U32)],
+            args: vec![Buffer("src",&F64),Buffer("dst",&F64),Param("size",&U32_4),Param("offset",&U32)],
             src: "dst[x+size.x*(y+size.y*z) + offset] = src[x+x_size*(y+y_size*z)];",
             needed: vec![],
         },
         Kernel {
             name: "complex_from_real",
-            args: vec![Buffer("src",F64),Buffer("dst",F64_2)],
+            args: vec![Buffer("src",&F64),Buffer("dst",&F64_2)],
             src: "dst[x] = (double2)(src[x],0);",
             needed: vec![],
         },
         Kernel {
             name: "complex_from_image",
-            args: vec![Buffer("src",F64),Buffer("dst",F64_2)],
+            args: vec![Buffer("src",&F64),Buffer("dst",&F64_2)],
             src: "dst[x] = (double2)(0,src[x]);",
             needed: vec![],
         },
         Kernel {
             name: "real_from_complex",
-            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64_2),Buffer("dst",&F64)],
             src: "dst[x] = src[x].x;",
             needed: vec![],
         },
         Kernel {
             name: "image_from_complex",
-            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64_2),Buffer("dst",&F64)],
             src: "dst[x] = src[x].y;",
             needed: vec![],
         },
         Kernel {
             name: "kc_sqrmod",
-            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64_2),Buffer("dst",&F64)],
             src: "dst[x] = c_sqrmod(src[x]);",
             needed: vec![FuncName("c_sqrmod".into())],
         },
         Kernel {
             name: "kc_mod",
-            args: vec![Buffer("src",F64_2),Buffer("dst",F64)],
+            args: vec![Buffer("src",&F64_2),Buffer("dst",&F64)],
             src: "dst[x] = c_mod(src[x]);",
             needed: vec![FuncName("c_mod".into())],
         },
         Kernel {
             name: "kc_times",
-            args: vec![Buffer("a",F64_2),Buffer("b",F64_2),Buffer("dst",F64_2)],
+            args: vec![Buffer("a",&F64_2),Buffer("b",&F64_2),Buffer("dst",&F64_2)],
             src: "dst[x] = c_times(a[x],b[x]);",
             needed: vec![FuncName("c_times".into())],
         },
         Kernel {
             name: "kc_divides",
-            args: vec![Buffer("a",F64_2),Buffer("b",F64_2),Buffer("dst",F64_2)],
+            args: vec![Buffer("a",&F64_2),Buffer("b",&F64_2),Buffer("dst",&F64_2)],
             src: "dst[x] = c_divides(a[x],b[x]);",
             needed: vec![FuncName("c_divides".into())],
         },

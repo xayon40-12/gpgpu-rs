@@ -1,11 +1,11 @@
-use ocl::{ProQue,Buffer,Kernel};
+use ocl::{ProQue,Kernel};
 use std::collections::{HashMap,BTreeMap};
 
 pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
 
 use crate::dim::{Dim,DimDir};
-use crate::descriptors::{KernelArg,BufferType,Type,VecType};
+use crate::descriptors::{KernelArg,BufferType,VecType,Type};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
 
@@ -24,44 +24,39 @@ impl Handler {
     pub fn builder() -> ocl::Result<HandlerBuilder> {
         HandlerBuilder::new()
     }
-
-    fn get_buffer<T: ocl::OclPrm>(&self, name: &str) -> &Buffer<T> {
-        let buf = self.buffers
-            .get(name)
-            .expect(&format!("Buffer \"{}\" not found",name));
-        buf.iner_any()
-            .downcast_ref::<Buffer<T>>()
-            .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),buf.type_name()))
-    }
     
     fn set_kernel_arg_buf(&self, name: &str, kernel: &(Kernel,BTreeMap<String,u32>), n: &str, m: &str) -> crate::Result<()>{
         let buf = self.buffers
             .get(n)
             .expect(&format!("Buffer \"{}\" not found",n));
-        iner_each!(buf,BufType,buf,kernel.0.set_arg(*kernel.1.get(m).expect(&format!("Param \"{}\" not present in kernel \"{}\"",m,name)),buf))
+        buf.set_arg(&kernel,name,m)
     }
 
-    pub fn get<T: ocl::OclPrm>(&self, name: &str) -> crate::Result<Vec<T>> {
-        let buf = self.get_buffer(name);
-        let len = buf.len();
-        let mut vec = Vec::with_capacity(len);
-        unsafe { vec.set_len(len); }
-        buf.read(&mut vec).enq()?;
-        Ok(vec)
+    pub fn get<T: 'static+VecType>(&self, name: &str) -> crate::Result<T> {
+        let buf = self.buffers
+            .get(name)
+            .expect(&format!("Buffer \"{}\" not found",name));
+        let tname = buf.type_name();
+        Ok(*buf.get()?
+            .downcast::<T>()
+            .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),tname)))
     }
 
-    pub fn get_first<T: ocl::OclPrm>(&self, name: &str) -> crate::Result<T> {
-        let buf = self.get_buffer(name);
-        let mut val = vec![Default::default()];
-        buf.read(&mut val).enq()?;
-        Ok(val[0])
+    pub fn get_first<T: 'static+Type>(&self, name: &str) -> crate::Result<T> {
+        let buf = self.buffers
+            .get(name)
+            .expect(&format!("Buffer \"{}\" not found",name));
+        let tname = buf.type_name();
+        Ok(*buf.get_first()?
+            .downcast::<T>()
+            .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),tname)))
     }
 
     fn _set_arg(&self, name: &str, desc: &[KernelArg], kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
         for d in desc {
             match d {
                 KernelArg::Param(n,v) =>
-                    iner_each!(v,Type,v,kernel.0.set_arg(*kernel.1.get(*n).expect(&format!("Param \"{}\" not present in kernel \"{}\"",n,name)),v)),
+                    v.set_arg(kernel,name,n),
                 KernelArg::Buffer(n) =>
                     self.set_kernel_arg_buf(name,kernel,n,n),
                 KernelArg::BufArg(n,m) =>
@@ -100,11 +95,8 @@ impl Handler {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
 
-    pub fn copy<T: ocl::OclPrm>(&mut self, src: &str, dst: &str) -> crate::Result<()> {
-        let src = self.buffers.get(src).expect(&format!("Buffer \"{}\" not found",src))
-            .iner::<T>().expect(&format!("Wrong type for buffer \"{}\"",src));
-        let dst = self.buffers.get(dst).expect(&format!("Buffer \"{}\" not found",dst))
-            .iner::<T>().expect(&format!("Wrong type for buffer \"{}\"",dst));
-        src.copy(dst,None,None).enq()
+    pub fn copy(&mut self, src: &str, dst: &str) -> crate::Result<()> {//TODO add verbosity to error for copy (names of the buffers)
+        self.buffers.get(src).expect(&format!("Buffer \"{}\" not found",src))
+            .copy(self.buffers.get(dst).expect(&format!("Buffer \"{}\" not found",dst)).as_ref())
     }
 }

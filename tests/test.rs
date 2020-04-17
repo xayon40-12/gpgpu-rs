@@ -1,11 +1,9 @@
 use gpgpu::Handler;
-use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*,VecType,Type::*};
+use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*,VecType,types::*};
 use gpgpu::kernels::Kernel;
 use gpgpu::{Dim,DimDir::*};
 use gpgpu::descriptors::KernelConstructor as KC;
 use gpgpu::descriptors::EmptyType as EmT;
-
-use gpgpu::types::*;
 
 #[test]
 fn simple_main() -> gpgpu::Result<()> {
@@ -400,3 +398,4 @@ fn function_test() -> gpgpu::Result<()> {
 
     Ok(())
 }
+use crate::descriptors::types::Type;

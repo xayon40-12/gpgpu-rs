@@ -13,7 +13,7 @@ pub struct HandlerBuilder {
     kernels: HashMap<String,(SKernel,String)>,
     algorithms: HashMap<String,(Callback,String)>,
     functions: HashMap<String,(SFunction,String)>,
-    buffers: Vec<(String,SBufferConstructor)>,
+    buffers: Vec<(String,BufferConstructor)>,
     data: HashMap<String, DataFile>,
 }
 
@@ -31,8 +31,8 @@ impl HandlerBuilder {
         })
     }
 
-    pub fn add_buffer(mut self, name: &str, desc: impl Into<SBufferConstructor>) -> Self {
-        self.buffers.push((name.to_string(),desc.into()));
+    pub fn add_buffer(mut self, name: &str, desc: BufferConstructor) -> Self {
+        self.buffers.push((name.to_string(),desc));
         self
     }
 
@@ -203,13 +203,13 @@ impl HandlerBuilder {
             };
             for a in args {
                 match a {
-                    SFunctionConstructor::Param(n,t) => 
+                    SFunctionConstructor::FCParam(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    SFunctionConstructor::Ptr(n,t) =>
+                    SFunctionConstructor::FCPtr(n,t) =>
                         prog += &format!("{} *{},", t.type_name_ocl(), n),
-                    SFunctionConstructor::GlobalPtr(n,t) =>
+                    SFunctionConstructor::FCGlobalPtr(n,t) =>
                         prog += &format!("__global {} *{},", t.type_name_ocl(), n),
-                    SFunctionConstructor::ConstPtr(n,t) =>
+                    SFunctionConstructor::FCConstPtr(n,t) =>
                         prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
                 };
             }
@@ -223,11 +223,11 @@ impl HandlerBuilder {
             prog += &format!("\n__kernel void {}(\n",name);
             for a in args {
                 match a {
-                    SKernelConstructor::Param(n,t) => 
+                    SKernelConstructor::KCParam(n,t) => 
                         prog += &format!("{} {},", t.type_name_ocl(), n),
-                    SKernelConstructor::Buffer(n,t) =>
+                    SKernelConstructor::KCBuffer(n,t) =>
                         prog += &format!("__global {} *{},", t.type_name_ocl(), n),
-                    SKernelConstructor::ConstBuffer(n,t) =>
+                    SKernelConstructor::KCConstBuffer(n,t) =>
                         prog += &format!("__constant {} *{},", t.type_name_ocl(), n)
                 };
             }
@@ -248,9 +248,9 @@ impl HandlerBuilder {
         let mut buffers = HashMap::new();
         for (name,desc) in self.buffers {
             let existing = match &desc {
-                SBufferConstructor::Len(val,len) => buffers.insert(name.clone(),
+                BufferConstructor::Len(val,len) => buffers.insert(name.clone(),
                     val.gen_buffer(&pq, *len)?),
-                SBufferConstructor::Data(data) => buffers.insert(name.clone(),
+                BufferConstructor::Data(data) => buffers.insert(name.clone(),
                     data.gen_buffer(&pq)?),
             };
             if existing.is_some() {
@@ -265,11 +265,11 @@ impl HandlerBuilder {
             let mut id = 0;
             for a in args {
                 match a {
-                    SKernelConstructor::Param(n,v) => {
+                    SKernelConstructor::KCParam(n,v) => {
                         map.insert(n.to_string(),id); id += 1;
                         v.default_param(&mut kernel);
                     },
-                    SKernelConstructor::Buffer(n,b) | SKernelConstructor::ConstBuffer(n,b) => {
+                    SKernelConstructor::KCBuffer(n,b) | SKernelConstructor::KCConstBuffer(n,b) => {
                         map.insert(n.to_string(),id); id += 1;
                         b.default_buffer(&mut kernel);
                     }
@@ -295,7 +295,7 @@ impl HandlerBuilder {
         let data = DataFile::parse(data);
         self = self.create_function(if interpolated { data.to_function_interpolated(name, huge_file_buf_name.is_some()) } else { data.to_function(name, huge_file_buf_name.is_some()) });
         if let Some(bufname) = huge_file_buf_name {
-            self = self.add_buffer(bufname, SBufferConstructor::Data(data.data.clone().into()));
+            self = self.add_buffer(bufname, BufferConstructor::Data(data.data.clone().into()));
         }
         self.data.insert(name.into(),data);
         self

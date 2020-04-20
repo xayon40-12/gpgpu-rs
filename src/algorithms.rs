@@ -1,11 +1,11 @@
 use crate::{Handler,kernels::{Kernel,SKernel}};
 use crate::Dim::{self,*};
 use crate::descriptors::KernelArg::*;
-use crate::descriptors::types::*;
+use crate::descriptors::Types::*;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::descriptors::KernelConstructor as KC;
-use crate::descriptors::empty_types as EmT;
+use crate::descriptors::KernelConstructor::*;
+use crate::descriptors::ConstructorTypes::*;
 use std::any::Any;
 use crate::DimDir::{*,self};
 
@@ -104,7 +104,7 @@ macro_rules! center {
     (kern_needed) => {
         vec![]
     };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 2,
             src
             dst
@@ -112,7 +112,7 @@ macro_rules! center {
         let mut dirs = [0u8,0,0,0];
         if $dirs.len() < 1 { panic!("There must be at least one direction given for algorithm \"{}\"", concat!("algo_",$name)); }
         $dirs.iter().for_each(|d| dirs[*d as usize] = 1);
-        $h.run_arg(concat!("algo_",$name), $dim, &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("dir",&U8_4(dirs.into()))])?;
+        $h.run_arg(concat!("algo_",$name), $dim, &[BufArg(&src,"src"),BufArg(&dst,"dst"),Param("dir",U8_4(dirs.into()))])?;
     };
     (src $src:literal) => {
         concat!("
@@ -125,8 +125,8 @@ macro_rules! center {
             uint idp = xp+yp+zp;
         ",$src)
     };
-    (args $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident) => {
-        vec![KC::Buffer("src",&EmT::$Eb),KC::Buffer("dst",&EmT::$Eb),KC::Param("dir",&EmT::U8_4)]
+    (args $CEb:ident|$CEp:ident|$CEp_:ident) => {
+        vec![KCBuffer("src",$CEb),KCBuffer("dst",$CEb),KCParam("dir",CU8_4)]
     };
 }
 
@@ -137,7 +137,7 @@ macro_rules! logreduce {
     (kern_needed) => {
         vec![]
     };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
             src
             tmp
@@ -189,15 +189,15 @@ macro_rules! logreduce {
         let mut size_reduce = [size[0] as usize, size[1] as usize, size[2] as usize];
         for (x,dir) in dims {
             let mut spacing = 2;
-            $h.run_arg(concat!("algo_",$name), d(spacing,dir,size_reduce), &[Param("s",&$Ep(spacing as _)),BufArg(&tmp,"src"),BufArg(&tmp,"dst"),Param("size",&$Ep_3(size.into())),Param("dir",&U8(dir as u8))])?;
+            $h.run_arg(concat!("algo_",$name), d(spacing,dir,size_reduce), &[Param("s",$Ep(spacing as _)),BufArg(&tmp,"src"),BufArg(&tmp,"dst"),Param("size",$Ep_(size.into())),Param("dir",U8(dir as u8))])?;
             while spacing<x {
                 spacing *= 2;
-                $h.run_arg(concat!("algo_",$name), d(spacing,dir,size_reduce), &[Param("s",&$Ep(spacing as _))])?;
+                $h.run_arg(concat!("algo_",$name), d(spacing,dir,size_reduce), &[Param("s",$Ep(spacing as _))])?;
             }
             size_reduce[dir as usize] = 1;
         }
         let dims = $dirs.iter().fold([size[0],size[1],size[2]], |mut a,dir| { a[*dir as usize] = 1; a });
-        $h.run_arg("move",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",&$Ep_3(size.into())),Param("offset",&U32(0))])?
+        $h.run_arg("move",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("offset",U32(0))])?
     };
     (src $src:literal) => {
         concat!("
@@ -211,8 +211,8 @@ macro_rules! logreduce {
             uint idp = xp+yp+zp;
         ",$src)
     };
-    (args $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident) => {
-        vec![KC::Buffer("src",&EmT::$Eb),KC::Buffer("dst",&EmT::$Eb),KC::Param("s",&EmT::$Ep),KC::Param("size",&EmT::$Ep_3),KC::Param("dir",&EmT::U8)]
+    (args $CEb:ident|$CEp:ident|$CEp_:ident) => {
+        vec![KCBuffer("src",$CEb),KCBuffer("dst",$CEb),KCParam("s",$CEp),KCParam("size",$CEp_),KCParam("dir",CU8)]
     };
 }
 
@@ -223,7 +223,7 @@ macro_rules! log {
     (kern_needed) => {
         vec![FuncName("c_exp".into()),FuncName("c_times".into())]
     };
-    (doing $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident) => {
         bufs!($bufs, $name, 3,
             src
             tmp
@@ -268,12 +268,12 @@ macro_rules! log {
             if !x.is_power_of_two() { panic!("In algorithm \"{}\", dimensions must be power of two.",$name); }
 
             let mut i = 1; j += 1;
-            $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2+begi],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",&$Ep(i as _)),Param("dir",&U8(dir as u8))]);
+            $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2+begi],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",$Ep(i as _)),Param("dir",U8(dir as u8))]);
             while (1<<i) < x {
                 i += 1; j += 1;
-                $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",&$Ep(i as _))]);
+                $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",$Ep(i as _))]);
             }
-            $h.run_arg("cdivides",D1((l*2) as _),&[BufArg(sd[(j+m+1)%2],"src"),Param("c",&$Ebp(x as _)),BufArg(&sd[(j+m+1)%2],"dst")]);
+            $h.run_arg("cdivides",D1((l*2) as _),&[BufArg(sd[(j+m+1)%2],"src"),Param("c",$Ebp(x as _)),BufArg(&sd[(j+m+1)%2],"dst")]);
             begi = 0;
         }
     };
@@ -303,27 +303,27 @@ macro_rules! log {
             uint idb = xp+yp+zp;
         ",$src)
     };
-    (args $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident) => {
-        vec![KC::Buffer("src",&EmT::$Eb),KC::Buffer("dst",&EmT::$Eb),KC::Param("i",&EmT::$Ep),KC::Param("dir",&EmT::U8)]
+    (args $CEb:ident|$CEp:ident|$CEp_:ident) => {
+        vec![KCBuffer("src",$CEb),KCBuffer("dst",$CEb),KCParam("i",$CEp),KCParam("dir",CU8)]
     };
 }
 
 macro_rules! algo_gen {
-    ($algo_macro:ident $name:literal, $Eb:ident|$Tb:ident $Ep:ident|$Ep_3:ident, $src:literal) => {
-        algo_gen!($algo_macro $name, $Eb|$Tb nop $Ep|$Ep_3, $src);
+    ($algo_macro:ident $name:literal, $CEb:ident|$Eb:ident $CEp:ident|$Ep:ident $CEp_:ident|$Ep_:ident, $src:literal) => {
+        algo_gen!($algo_macro $name, $CEb|$Eb|nop $CEp|$Ep $CEp_|$Ep_, $src);
     };
-    ($algo_macro:ident $name:literal, $Eb:ident|$Tb:ident $Ebp:ident $Ep:ident|$Ep_3:ident, $src:literal) => {
+    ($algo_macro:ident $name:literal, $CEb:ident|$Eb:ident|$Ebp:ident $CEp:ident|$Ep:ident $CEp_:ident|$Ep_:ident, $src:literal) => {
         #[allow(unused)]
         Algorithm {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
-                $algo_macro!(doing $name, $Eb|$Tb $Ebp $Ep|$Ep_3, h, dim, dirs, bufs);
+                $algo_macro!(doing $name, $Eb|$Ebp $Ep|$Ep_, h, dim, dirs, bufs);
                 Ok(())
             }),
             needed: $algo_macro!(nedeed
                 NewKernel(Kernel {
                     name: concat!("algo_",$name),
-                    args: $algo_macro!(args $Eb|$Tb $Ep|$Ep_3),
+                    args: $algo_macro!(args $CEb|$CEp|$CEp_),
                     src: $algo_macro!(src $src),
                     needed: $algo_macro!(kern_needed),
                 })
@@ -336,15 +336,15 @@ macro_rules! algo_gen {
 pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
     vec![
         // sum each elements.
-        algo_gen!(logreduce "sum",F64|f64 U32|U32_4,"dst[id] = src[id]+src[idp];"),
+        algo_gen!(logreduce "sum",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[id]+src[idp];"),
         // find min value.
-        algo_gen!(logreduce "min",F64|f64 U32|U32_4,"dst[id] = (src[id]<src[idp])?src[id]:src[idp];"),
+        algo_gen!(logreduce "min",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = (src[id]<src[idp])?src[id]:src[idp];"),
         // find max value.
-        algo_gen!(logreduce "max",F64|f64 U32|U32_4,"dst[id] = (src[id]>src[idp])?src[id]:src[idp];"),
+        algo_gen!(logreduce "max",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = (src[id]>src[idp])?src[id]:src[idp];"),
         // Compute correlation.
-        algo_gen!(center "correlation",F64|f64 U32|U32_4,"dst[id] = src[id]*src[idp];"),
+        algo_gen!(center "correlation",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[id]*src[idp];"),
         // Compute the FFT
-        algo_gen!(log "FFT",F64_2|Double2 F64 U32|U32_4,"
+        algo_gen!(log "FFT",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"
             dst[id] = src[ida] + c_times(src[idb],c_exp(-2*M_PI*u/(1<<i)));
         "),
         // Compute moments. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
@@ -375,20 +375,20 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],None)?;
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
-                h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",&U32_4([num,sumlen,1,0].into())),Param("offset",&U32(0))])?;
+                h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",U32_4([num,sumlen,1,0].into())),Param("offset",U32(0))])?;
                 h.run("smove",D2(1,sumlen as usize))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
                     h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
-                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",&U32(1))])?;
+                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(1))])?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l))?;
                     h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
-                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",&U32(i as u32))])?;
+                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(i as u32))])?;
                 }
-                h.run_arg("cdivides",D1((num*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",&F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
+                h.run_arg("cdivides",D1((num*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
 
                 Ok(())
             }),

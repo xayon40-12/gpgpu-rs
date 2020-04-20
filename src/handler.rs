@@ -5,18 +5,18 @@ pub mod handler_builder;
 pub use handler_builder::HandlerBuilder;
 
 use crate::dim::{Dim,DimDir};
-use crate::descriptors::{KernelArg,BufferType,VecType,Type};
+use crate::descriptors::{KernelArg,BufferTypes,VecTypes,Types};
 use crate::algorithms::Callback;
 use crate::data_file::DataFile;
 
-use std::any::{type_name,Any};
+use std::any::Any;
 
 #[allow(dead_code)]
 pub struct Handler {
     pq: ProQue,
     kernels: HashMap<String,(Kernel,BTreeMap<String,u32>)>,
     algorithms: HashMap<String,Callback>,
-    buffers: HashMap<String,Box<dyn BufferType>>,
+    buffers: HashMap<String,BufferTypes>,
     data: HashMap<String,DataFile>,
 }
 
@@ -32,24 +32,18 @@ impl Handler {
         buf.set_arg(&kernel,name,m)
     }
 
-    pub fn get<T: 'static+VecType>(&self, name: &str) -> crate::Result<T> {
-        let buf = self.buffers
+    pub fn get(&self, name: &str) -> crate::Result<VecTypes> {
+        self.buffers
             .get(name)
-            .expect(&format!("Buffer \"{}\" not found",name));
-        let tname = buf.type_name();
-        Ok(*buf.get()?
-            .downcast::<T>()
-            .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),tname)))
+            .expect(&format!("Buffer \"{}\" not found",name))
+            .get()
     }
 
-    pub fn get_first<T: 'static+Type>(&self, name: &str) -> crate::Result<T> {
-        let buf = self.buffers
+    pub fn get_first(&self, name: &str) -> crate::Result<Types> {
+        self.buffers
             .get(name)
-            .expect(&format!("Buffer \"{}\" not found",name));
-        let tname = buf.type_name();
-        Ok(*buf.get_first()?
-            .downcast::<T>()
-            .expect(&format!("Wrong type for buffer \"{}\", expected {}, found {}",name,type_name::<T>(),tname)))
+            .expect(&format!("Buffer \"{}\" not found",name))
+            .get_first()
     }
 
     fn _set_arg(&self, name: &str, desc: &[KernelArg], kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
@@ -97,6 +91,6 @@ impl Handler {
 
     pub fn copy(&mut self, src: &str, dst: &str) -> crate::Result<()> {//TODO add verbosity to error for copy (names of the buffers)
         self.buffers.get(src).expect(&format!("Buffer \"{}\" not found",src))
-            .copy(self.buffers.get(dst).expect(&format!("Buffer \"{}\" not found",dst)).as_ref())
+            .copy(self.buffers.get(dst).expect(&format!("Buffer \"{}\" not found",dst)))
     }
 }

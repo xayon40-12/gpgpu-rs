@@ -1,5 +1,5 @@
 use crate::functions::{Function,SFunction};
-use crate::descriptors::{empty_types::F64,FunctionConstructor::*};
+use crate::descriptors::{ConstructorTypes::CF64,FunctionConstructor::*};
 
 // each steps length for each respective dimensions must be constant.
 #[derive(Debug)]
@@ -106,8 +106,8 @@ impl DataFile {
 
             (&Function {
                 name: name,
-                args: vec![Ptr("coords",&F64),GlobalPtr("data",&F64)],
-                ret_type: Some(&F64),
+                args: vec![FCPtr("coords",CF64),FCGlobalPtr("data",CF64)],
+                ret_type: Some(CF64),
                 src: &src,
                 needed: vec![],
             }).into()
@@ -128,8 +128,8 @@ impl DataFile {
 
             (&Function {
                 name: name,
-                args: vec![Ptr("coords",&F64)],
-                ret_type: Some(&F64),
+                args: vec![FCPtr("coords",CF64)],
+                ret_type: Some(CF64),
                 src: &src,
                 needed: vec![],
             }).into()

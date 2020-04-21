@@ -7,6 +7,15 @@ pub enum Dim {
     D2(usize,usize),
     D3(usize,usize,usize)
 }
+impl Dim {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::D1(..) => 1,
+            Self::D2(..) => 2,
+            Self::D3(..) => 3,
+        }
+    }
+}
 
 #[derive(Deserialize,Serialize,Debug,Clone,Copy)]
 pub enum DimDir {

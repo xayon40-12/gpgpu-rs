@@ -235,6 +235,7 @@ macro_rules! gen_types {
         }
 
         #[derive(Debug,Clone,Serialize,Deserialize)]
+        #[repr(C)]
         pub enum $VecTypes {
             $($vtype(Vec<$type_rust>),)+
         }

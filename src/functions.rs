@@ -65,6 +65,13 @@ pub fn functions() -> HashMap<&'static str,Function<'static>> {
             needed: vec![],
         },
         Function {
+            name: "mid",
+            args: vec![FCParam("x",CU32),FCParam("y",CU32),FCParam("z",CU32)],
+            ret_type: Some(CU32),
+            src: "return (x%get_global_work_size(0))+get_global_work_size(0)*((y%get_global_work_size(1))+get_global_work_size(1)*(z%get_global_work_size(2)));",
+            needed: vec![],
+        },
+        Function {
             name: "c_sqrmod",
             args: vec![FCParam("src",CF64_2)],
             ret_type: Some(CF64),

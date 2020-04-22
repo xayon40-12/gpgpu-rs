@@ -9,6 +9,7 @@ pub mod algorithms;
 pub mod functions;
 pub mod descriptors;
 pub mod philox;
+pub mod integrators;
 
 pub mod data_file;
 

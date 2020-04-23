@@ -197,9 +197,9 @@ impl HandlerBuilder {
 
         for (name,(SFunction {src,args,ret_type,..},..)) in &self.functions {
             prog += &if let Some(ret) = ret_type {
-                format!("\ninline {} {}(\n",ret.type_name_ocl(),name)
+                format!("\ninline {} {}(",ret.type_name_ocl(),name)
             } else {
-                format!("\nvoid {}(\n",name)
+                format!("\nvoid {}(",name)
             };
             for a in args {
                 match a {
@@ -220,7 +220,7 @@ impl HandlerBuilder {
         }
 
         for (name,(SKernel {src,args,..},..)) in &self.kernels {
-            prog += &format!("\n__kernel void {}(\n",name);
+            prog += &format!("\n__kernel void {}(",name);
             for a in args {
                 match a {
                     SKernelConstructor::KCParam(n,t) => 
@@ -239,6 +239,8 @@ impl HandlerBuilder {
             prog += src;
             prog += "\n}\n";
         }
+        
+        //TODO print the code (prog) to a file
 
         let pq = ProQue::builder()
             .src(prog)

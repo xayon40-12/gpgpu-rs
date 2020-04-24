@@ -8,27 +8,6 @@ use std::any::Any;
 use serde::{Serialize,Deserialize};
 use crate::descriptors::Types;
 
-#[derive(Clone)]
-pub struct PDE<'a> {
-    dependant_var: &'a str,
-    expr: &'a str,
-}
-
-#[derive(Clone,Serialize,Deserialize)]
-pub struct SPDE {
-    dependant_var: String,
-    expr: String,
-}
-
-impl<'a> From<&PDE<'a>> for SPDE {
-    fn from(de: &PDE) -> SPDE {
-        SPDE {
-            dependant_var: de.dependant_var.into(),
-            expr: de.expr.into(),
-        }
-    }
-}
-
 #[derive(Clone,Serialize,Deserialize)]
 pub enum DiffDir {
     Forward(Vec<DimDir>),
@@ -76,8 +55,8 @@ impl IndexingTypes {
             Token { coord, divided: [0;3], coef: 1, dim, var_name: var_name.into(), boundary: boundary.into() }
         }).collect())
     }
-    pub fn apply_diffs(self, dirs: &[DiffDir]) -> Vec<IndexingTypes> {
-        let mut tmp = vec![self];
+    pub fn apply_diffs(&self, dirs: &[DiffDir]) -> Vec<IndexingTypes> {
+        let mut tmp = vec![self.clone()];
         for dir in dirs {
             let (coordinc,dirs) = match dir {
                 Forward(dirs) => (1,dirs),
@@ -146,22 +125,24 @@ pub enum PDETokens<'a> {
     Sub(&'a PDETokens<'a>,&'a PDETokens<'a>),
     Mul(&'a PDETokens<'a>,&'a PDETokens<'a>),
     Div(&'a PDETokens<'a>,&'a PDETokens<'a>),
-    Diff(&'a PDETokens<'a>),
-    Symbol(&'a str),
-    Constant(Types),
-    Indexable(IndexingTypes),
+    Diff(&'a PDETokens<'a>,DiffDir),
+    Symb(&'a str),
+    Const(Types),
+    Vect(Vec<Types>),
+    Indx(IndexingTypes),
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum SPDETokens {
     Add(Box<SPDETokens>,Box<SPDETokens>),
     Sub(Box<SPDETokens>,Box<SPDETokens>),
     Mul(Box<SPDETokens>,Box<SPDETokens>),
     Div(Box<SPDETokens>,Box<SPDETokens>),
-    Diff(Box<SPDETokens>),
-    Symbol(String),
-    Constant(Types),
-    Indexable(IndexingTypes),
+    Diff(Box<SPDETokens>,DiffDir),
+    Symb(String),
+    Const(Types),
+    Vect(Vec<Types>),
+    Indx(IndexingTypes),
 }
 
 impl<'a> From<&PDETokens<'a>> for SPDETokens {
@@ -171,21 +152,91 @@ impl<'a> From<&PDETokens<'a>> for SPDETokens {
             PDETokens::Sub(a,b) => Self::Sub(Box::new((*a).into()),Box::new((*b).into())),
             PDETokens::Mul(a,b) => Self::Mul(Box::new((*a).into()),Box::new((*b).into())),
             PDETokens::Div(a,b) => Self::Div(Box::new((*a).into()),Box::new((*b).into())),
-            PDETokens::Diff(a) => Self::Diff(Box::new((*a).into())),
-            PDETokens::Symbol(a) => Self::Symbol((*a).into()),
-            PDETokens::Constant(a) => Self::Constant(*a),
-            PDETokens::Indexable(a) => Self::Indexable(a.clone()),
+            PDETokens::Diff(a,d) => Self::Diff(Box::new((*a).into()),d.clone()),
+            PDETokens::Symb(a) => Self::Symb((*a).into()),
+            PDETokens::Const(a) => Self::Const(*a),
+            PDETokens::Vect(a) => Self::Vect((*a).clone()),
+            PDETokens::Indx(a) => Self::Indx(a.clone()),
         }
     }
 }
 
-pub struct PDECreator {
+impl<'a> PDETokens<'a> {
+    pub fn to_ocl(&self) -> String {
+        SPDETokens::from(self).to_ocl()
+    }
+}
+
+
+impl SPDETokens {
+    pub fn to_ocl(self) -> String {
+        match self.convert() {
+            Self::Add(a,b) => format!("({} + {})", a.to_ocl(), b.to_ocl()),
+            Self::Sub(a,b) => format!("({} - {})", a.to_ocl(), b.to_ocl()),
+            Self::Mul(a,b) => format!("({} * {})", a.to_ocl(), b.to_ocl()),
+            Self::Div(a,b) => format!("({} / {})", a.to_ocl(), b.to_ocl()),
+            Self::Diff(..) => panic!("Cannot convert SPDETokens::Diff to ocl String, it must be handled by SPDEToken::convert()."),
+            Self::Symb(a) => a,
+            Self::Const(a) => if a.len() != 1 { panic!("Only single element Type are accepted as SPDETokens::Constant.") } else { a.to_string() },
+            Self::Vect(_) => panic!("Cannot convert SPDETokens::Vector to ocl String, it must be handled by SPDEToken::convert()."),
+            Self::Indx(a) => if let Scalar(s) = a { s.to_string() } else { panic!("Cannot convert IndexingTypes::Vector to ocl String, it must be handled by SPDEToken::convert().") },
+        }
+    }
+
+    fn convert(self) -> Self {
+        match self {
+            Self::Add(a,b) => Self::Add(Box::new(a.convert()),Box::new(b.convert())),
+            Self::Sub(a,b) => Self::Sub(Box::new(a.convert()),Box::new(b.convert())),
+            Self::Mul(a,b) => {
+                match *a {
+                    Self::Add(c,d) => Self::Add(Box::new(Self::Mul(c,b.clone()).convert()),Box::new(Self::Mul(d,b).convert())),
+                    Self::Sub(c,d) => Self::Sub(Box::new(Self::Mul(c,b.clone()).convert()),Box::new(Self::Mul(d,b).convert())),
+                    _ => match *b {
+                        Self::Add(c,d) => Self::Add(Box::new(Self::Mul(a.clone(),c).convert()),Box::new(Self::Mul(a,d).convert())),
+                        Self::Sub(c,d) => Self::Sub(Box::new(Self::Mul(a.clone(),c).convert()),Box::new(Self::Mul(a,d).convert())),
+                        _ => Self::Mul(Box::new(a.convert()),Box::new(b.convert())),
+                    },
+                }
+            },
+            Self::Div(a,b) => Self::Div(Box::new(a.convert()),Box::new(b.convert())),
+            Self::Diff(a,d) => a.apply_diff(vec![d]),
+            Self::Vect(_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by an other vector."),
+            Self::Indx(a) => if let Scalar(_) = &a { Self::Indx(a) } else { panic!("Cannot convert IndexingTypes::Vector, it should have been multiplied by an other vector.") },
+            _ => self,
+        }
+    }
+
+    fn apply_diff(self, mut diffs: Vec<DiffDir>) -> Self {
+        match self {
+            Self::Diff(a,d) => { diffs.push(d); a.apply_diff(diffs) },
+            Self::Indx(a) => {
+                let mut it = a.apply_diffs(&diffs[..]).into_iter().map(|i| Self::Indx(i));
+                let first = it.next().unwrap();
+                it.fold(first, |a,i| Self::Add(Box::new(a),Box::new(i)))
+            }
+            _ => panic!("Diff can only be applied to Diff or Indexable."),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct PDE<'a> {
+    dependant_var: &'a str,
+    expr: PDETokens<'a>,
+}
+
+#[derive(Clone,Serialize,Deserialize)]
+pub struct SPDE {
+    dependant_var: String,
     expr: String,
 }
 
-impl PDECreator {
-    pub fn add<'a>(&mut self, var_name: &'a str, boundary: &'a str, var: IndexingTypes, diffs: Vec<DiffDir>) {
-        let var = var.apply_diffs(&diffs);//TODO use vars
+impl<'a> From<&PDE<'a>> for SPDE {
+    fn from(de: &PDE) -> SPDE {
+        SPDE {
+            dependant_var: de.dependant_var.into(),
+            expr: de.expr.to_ocl(),
+        }
     }
 }
 

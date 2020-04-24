@@ -17,11 +17,22 @@ impl Dim {
     }
 }
 
-#[derive(Deserialize,Serialize,Debug,Clone,Copy)]
+#[derive(Deserialize,Serialize,Debug,Clone,Copy,PartialEq,PartialOrd,Eq,Ord)]
 pub enum DimDir {
     X,
     Y,
     Z
+}
+
+impl From<usize> for DimDir {
+    fn from(i: usize) -> DimDir {
+        match i {
+            0 => DimDir::X,
+            1 => DimDir::Y,
+            2 => DimDir::Z,
+            _ => panic!("Wrong value to create DimDir, usize accepted {{0,1,2}}, given {}.", i)
+        }
+    }
 }
 
 impl From<Dim> for SpatialDims {

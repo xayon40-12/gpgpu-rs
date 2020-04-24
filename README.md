@@ -16,7 +16,8 @@ Global:
 - [x] file loading (GPU) max elements: 8192  
 - [x] file loading interpolation (high extrema excluded)  
 - [x] huge file loading (GPU)  
-- [ ] Serialize/Deserialize for kernels and functions
+- [x] Serialize/Deserialize for kernels and functions  
+- [x] Integrators  
 
 Kernels:  
 - [x] component wise operators buffer/buffer  
@@ -32,6 +33,10 @@ Algorithms:
 - [x] chose on which dimension to apply algorithms  
 - [x] 1,2,3D Fourier transform  
 
+Integrators:  
+- [ ] PDE generator
+- [ ] Euler  
+- [ ] QSS  
 
 Random number generation:  
 - [x] philox 4x32,2x64,4x64  

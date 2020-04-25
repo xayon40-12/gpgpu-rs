@@ -54,9 +54,11 @@ fn simple_int() -> gpgpu::Result<()> {
     Ok(())
 }
 
+use std::io::Write;
+use std::time::SystemTime;
 fn diffusion_int() -> gpgpu::Result<()> {
-    let l = 1<<8;
-    let t = 1000.0;
+    let l = 1<<24;
+    let t = 10.0;
     let dt = 0.01;
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
@@ -68,9 +70,12 @@ fn diffusion_int() -> gpgpu::Result<()> {
 
     let args = vec![("D".to_string(),F64(5.0))];
     let m = (t/dt) as usize;
-    for _ in 0..m {
+    let start = SystemTime::now();
+    for i in 0..m {
+        if i%(m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
         gpu.run_algorithm("diffusion",D1(l),&[X],&["dst","u"],Some(&args))?;
     }
+    println!("{} s / {} steps / {} elements", SystemTime::now().duration_since(start).unwrap().as_millis() as f64/1000.0, m, l);
     println!("u[0]: {:?} <-> {}", gpu.get_first("u")?.F64(), (l-1) as f64/2.0);
     Ok(())
 }

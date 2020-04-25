@@ -35,7 +35,7 @@ Algorithms:
 
 Integrators:  
 - [ ] PDE generator
-- [ ] Euler  
+- [x] Euler  
 - [ ] QSS  
 
 Random number generation:  

@@ -1,14 +1,14 @@
 use serde::{Serialize,Deserialize};
 use ocl::prm::*;
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub enum KernelArg<'a> { //TODO use one SC for each &'a str
     Param(&'a str, Types),
     Buffer(&'a str),
     BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 pub enum SKernelArg {
     Param(String, Types),
     Buffer(String),
@@ -25,20 +25,20 @@ impl<'a> From<&KernelArg<'a>> for SKernelArg {
     }
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 pub enum BufferConstructor {
     Len(Types,usize), // Len(repeated value, len)
     Data(VecTypes),
 }
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
     KCParam(&'a str, ConstructorTypes),
     KCBuffer(&'a str, ConstructorTypes),
     KCConstBuffer(&'a str, ConstructorTypes),
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 pub enum SKernelConstructor {
     KCParam(String, ConstructorTypes),
     KCBuffer(String, ConstructorTypes),
@@ -55,7 +55,7 @@ impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     FCParam(&'a str, ConstructorTypes),
     FCPtr(&'a str, ConstructorTypes),
@@ -63,7 +63,7 @@ pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     FCConstPtr(&'a str, ConstructorTypes),
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 pub enum SFunctionConstructor {
     FCParam(String, ConstructorTypes),
     FCPtr(String, ConstructorTypes),

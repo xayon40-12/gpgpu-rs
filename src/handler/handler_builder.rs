@@ -233,14 +233,15 @@ impl HandlerBuilder {
             }
             prog.pop(); // remove last unnescessary ","
             prog += ") {\n";
-            prog += "    long x = get_global_id(0); long x_size = get_global_size(0);\n";
-            prog += "    long y = get_global_id(1); long y_size = get_global_size(1);\n";
-            prog += "    long z = get_global_id(2); long z_size = get_global_size(2);\n";
+            prog += "    uint x = get_global_id(0); uint x_size = get_global_size(0);\n";
+            prog += "    uint y = get_global_id(1); uint y_size = get_global_size(1);\n";
+            prog += "    uint z = get_global_id(2); uint z_size = get_global_size(2);\n";
             prog += src;
             prog += "\n}\n";
         }
         
         //TODO print the code (prog) to a file
+        #[cfg(debug_assertions)]eprintln!("{}", &prog);
 
         let pq = ProQue::builder()
             .src(prog)

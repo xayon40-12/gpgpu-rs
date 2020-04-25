@@ -1,12 +1,11 @@
 use crate::descriptors::{KernelConstructor::*,ConstructorTypes::*,KernelArg::*};
-use crate::functions::Needed::*;
 use crate::kernels::{Kernel};
 use crate::algorithms::{SAlgorithm,SNeeded::*};
 use crate::Handler;
 use crate::dim::{Dim,DimDir};
 use std::any::Any;
 use serde::{Serialize,Deserialize};
-use crate::descriptors::Types;
+use crate::descriptors::{Types,ConstructorTypes};
 
 #[derive(Debug,Clone,Serialize,Deserialize)]
 pub enum DiffDir {
@@ -36,9 +35,17 @@ fn divided_str(d: &[u32;3]) -> String {
     let first = tmp.next().unwrap();
     format!("/({})",tmp.fold(first,|a,i| format!("{}*{}",a,i)))
 }
+fn coords_str(c: &[i32;4], dim: usize) -> String {
+    let coo = |i| if i == dim { format!("{}",c[3]) } else { format!("{}{}{}",
+        ['x','y','z'][i],
+        if c[i]<=0 { "" } else { "+" },
+        if c[i]==0 { "".to_string() } else { format!("{}",c[i]) 
+    })};
+    (1..=dim).fold(coo(0), |a,i| format!("{},{}",a,coo(i)))
+}
 impl Token {
     pub fn to_string(&self) -> String {
-        format!("{}*{}({},{}){}",self.coef,self.boundary,(1..=self.dim).fold(self.coord[0].to_string(), |a,i| format!("{},{}",a,self.coord[i])),self.var_name,divided_str(&self.divided))
+        format!("({})*{}({},{}){}",self.coef,self.boundary,coords_str(&self.coord,self.dim),self.var_name,divided_str(&self.divided))
     }
 }
 
@@ -94,7 +101,7 @@ impl IndexingTypes {
                         t
                     }).collect::<Vec<_>>();
                     let mut vr = vl.clone();
-                    vr.iter_mut().for_each(|t| { t.coord.iter_mut().for_each(|i| *i -= 1); t.coef *= -1; });
+                    vr.iter_mut().for_each(|t| { dirs.iter().for_each(|i| t.coord[*i as usize] -= 1); t.coef *= -1; });
                     vec![Vector(vl),Vector(vr)]
                 }
             }).collect());
@@ -284,14 +291,14 @@ impl SPDETokens {
 
 #[derive(Clone)]
 pub struct PDE<'a> {
-    dependant_var: &'a str,
-    expr: PDETokens<'a>,
+    pub dependant_var: &'a str,
+    pub expr: PDETokens<'a>,
 }
 
 #[derive(Clone,Serialize,Deserialize)]
 pub struct SPDE {
-    dependant_var: String,
-    expr: String,
+    pub dependant_var: String,
+    pub expr: String,
 }
 
 impl<'a> From<&PDE<'a>> for SPDE {
@@ -306,30 +313,39 @@ impl<'a> From<&PDE<'a>> for SPDE {
 // Each PDE must be first order in time. A higher order PDE can be cut in multiple first order PDE.
 // Example: d2u/dt2 + du/dt = u   =>   du/dt = z, dz/dt = u.
 // It is why the parameter pdes is a Vec.
-pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>) -> SAlgorithm {
+pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
     let name = name.to_string();
+        let mut args = vec![KCBuffer("dst",CF64)];
+        args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dependant_var,CF64)));
+        args.extend(params.iter().map(|t| KCParam(&t.0,t.1)));
     let needed = pdes.iter().map(|d| {
         NewKernel((&Kernel {
             name: &format!("{}_{}", &name, &d.dependant_var),
-            args: vec![KCBuffer("dst",CF64),KCBuffer(&d.dependant_var,CF64)],
-            src: &format!("uint id = x+x_size*(y+y_size*z); dst[id] = {}[id] +{}*({})", d.dependant_var, dt, d.expr),
-            needed: vec![FuncName("mid")],
+            args: args.clone(),
+            src: &format!("    uint _i = x+x_size*(y+y_size*z);\n    dst[_i] = {}[_i] +{}*({});", d.dependant_var, dt, d.expr),
+            needed: vec![],
         }).into())
     }).collect::<Vec<_>>();
     let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dependant_var),d.dependant_var.clone())).collect::<Vec<_>>();
     SAlgorithm {
         name: name.clone(),
-        callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], _other: Option<&dyn Any>| {
+        callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], other: Option<&dyn Any>| {
             // bufs[0] = dst
             // bufs[1,2,...] = differential equation buffer holders in the same order as giver for
             // create_euler function
             // bufs[i] must write in bufs[i-1]
             let num = vars.len()+1;
             if bufs.len() != num { panic!("Euler algorithm \"{}\" must be given {} buffer arguments.", &name, &num); }
-            let mut i = num;
-            for (name,var) in vars.iter().rev() {
-                i -= 1;
-                h.run_arg(name,dim,&[BufArg(bufs[i-1],"dst"),BufArg(bufs[i],var)])?;
+            let mut args = vec![BufArg(&bufs[0],"dst")];
+            for i in 0..vars.len() {
+                args.push(BufArg(&bufs[i+1],&vars[i].1));
+            }
+            if let Some(params) = other {
+                args.extend(params.downcast_ref::<Vec<(String,Types)>>().expect(&format!("Parameters of \"{}\" Euler Algorithm must be Vec<(String,Types)>.",&name)).iter().map(|i| Param(&i.0,i.1)));
+            }
+            for i in (0..vars.len()).rev() {
+                h.run_arg(&vars[i].0,dim,&args)?;
+                h.copy(bufs[0],bufs[i+1])?;
             }
 
             Ok(())

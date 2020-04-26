@@ -26,7 +26,7 @@ fn pde_generator_test() -> gpgpu::Result<()> {
     println!("{}\n", Add(&Mul(&Symb("a"),&Const(1.into())),&Sub(&Div(&Symb("b"),&Symb("c")),&Symb("d"))).to_ocl());
     println!("{}\n", &Mul(&v,&Diff(&Diff(&u,&f),&b)).to_ocl());
     println!("{}\n", &Mul(&Diff(&Diff(&u,&f),&b),&v).to_ocl());
-    println!("{}\n", &Mul(&u,&v).to_ocl());
+    println!("{}\n", &Func("cos",&Mul(&u,&v)).to_ocl());
     println!("{}\n", &Diff(&Diff(&T,&F),&B).to_ocl());
     Ok(())
 }

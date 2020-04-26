@@ -44,6 +44,11 @@ fn coords_str(c: &[i32;4], dim: usize) -> String {
     (1..=dim).fold(coo(0), |a,i| format!("{},{}",a,coo(i)))
 }
 impl Token {
+    pub fn apply_idx(&mut self, idx: &[i32;4]) {
+        for i in 0..4 {
+            self.coord[i] += idx[i];
+        }
+    }
     pub fn to_string(&self) -> String {
         format!("({})*{}({},{}){}",self.coef,self.boundary,coords_str(&self.coord,self.dim),self.var_name,divided_str(&self.divided))
     }
@@ -108,6 +113,13 @@ impl IndexingTypes {
         }
         tmp
     }
+    pub fn apply_idx(mut self, idx: &[i32;4]) -> Self {
+        match &mut self {
+            Vector(v) => v.iter_mut().for_each(|i| i.apply_idx(idx)),
+            Scalar(s) => s.apply_idx(idx),
+        }
+        self
+    }
     pub fn add_coef(self, other: Self) -> Self {
         match self {
             Scalar(mut t) => if let Scalar(to) = other {
@@ -144,9 +156,12 @@ pub enum PDETokens<'a> {
     Mul(&'a PDETokens<'a>,&'a PDETokens<'a>),
     Div(&'a PDETokens<'a>,&'a PDETokens<'a>),
     Diff(&'a PDETokens<'a>,&'a DiffDir),
+    Func(&'a str,&'a PDETokens<'a>),
+    // the usize is the dim of the vector that the funcion returns
+    //TODO FuncVec(&'a str,&'a PDETokens<'a>,usize), 
     Symb(&'a str),
-    Const(Types),
-    Vect(Vec<Types>),
+    Const(f64),
+    Vect(Vec<f64>),
     Indx(IndexingTypes),
 }
 
@@ -157,9 +172,10 @@ pub enum SPDETokens {
     Mul(Box<SPDETokens>,Box<SPDETokens>),
     Div(Box<SPDETokens>,Box<SPDETokens>),
     Diff(Box<SPDETokens>,DiffDir),
+    Func(String,Box<SPDETokens>),
     Symb(String),
-    Const(Types),
-    Vect(Vec<Types>),
+    Const(f64),
+    Vect(Vec<f64>),
     Indx(IndexingTypes),
 }
 
@@ -171,6 +187,7 @@ impl<'a> From<&PDETokens<'a>> for SPDETokens {
             PDETokens::Mul(a,b) => Self::Mul(Box::new((*a).into()),Box::new((*b).into())),
             PDETokens::Div(a,b) => Self::Div(Box::new((*a).into()),Box::new((*b).into())),
             PDETokens::Diff(a,d) => Self::Diff(Box::new((*a).into()),(*d).clone()),
+            PDETokens::Func(n,a) => Self::Func((*n).into(),Box::new((*a).into())),
             PDETokens::Symb(a) => Self::Symb((*a).into()),
             PDETokens::Const(a) => Self::Const(*a),
             PDETokens::Vect(a) => Self::Vect((*a).clone()),
@@ -185,74 +202,72 @@ impl<'a> PDETokens<'a> {
     }
 }
 
-
 impl SPDETokens {
     pub fn to_ocl(self) -> String {
+        use SPDETokens::*;
         match self.convert() {
-            Self::Add(a,b) => format!("{} + {}", a.to_ocl(), b.to_ocl()),
-            Self::Sub(a,b) => format!("{} - {}", a.to_ocl(), b.to_ocl()),
-            Self::Mul(a,b) => format!("{} * {}", a.to_ocl(), b.to_ocl()),
-            Self::Div(a,b) => format!("{} / {}", a.to_ocl(), b.to_ocl()),
-            Self::Diff(..) => panic!("Cannot convert SPDETokens::Diff to ocl String, it must be handled by SPDEToken::convert()."),
-            Self::Symb(a) => a,
-            Self::Const(a) => if a.len() != 1 { panic!("Only single element Type are accepted as SPDETokens::Constant.") } else { a.to_string() },
-            Self::Vect(_) => panic!("Cannot convert SPDETokens::Vector to ocl String, it must be handled by SPDEToken::convert()."),
-            Self::Indx(a) => if let Scalar(s) = a { s.to_string() } else { panic!("Cannot convert IndexingTypes::Vector to ocl String, it must be handled by SPDEToken::convert().") },
+            Add(a,b) => format!("{} + {}", a.to_ocl(), b.to_ocl()),
+            Sub(a,b) => format!("{} - {}", a.to_ocl(), b.to_ocl()),
+            Mul(a,b) => format!("{} * {}", a.to_ocl(), b.to_ocl()),
+            Div(a,b) => format!("{} / {}", a.to_ocl(), b.to_ocl()),
+            Func(n,a) => format!("{}({})",n,a.to_ocl()),
+            Symb(a) => a,
+            Const(a) => format!("{:e}",a),
+            Indx(a) => if let Scalar(s) = a { s.to_string() } else { panic!("Cannot convert IndexingTypes::Vector to ocl String, it must be handled by SPDEToken::convert().") },
+            s @ _ => panic!("Not expected during SPDEToken::to_ocl: {:?}", s),
         }
     }
 
     fn convert(self) -> Self {
+        use SPDETokens::*;
         match self {
-            Self::Add(a,b) => Self::Add(Box::new(a.convert()),Box::new(b.convert())),
-            Self::Sub(a,b) => Self::Sub(Box::new(a.convert()),Box::new(b.convert())),
-            Self::Mul(a,b) => {
+            Mul(a,b) => {
                 match *a {
-                    Self::Add(c,d) => Self::Add(Box::new(Self::Mul(c,b.clone()).convert()),Box::new(Self::Mul(d,b).convert())),
-                    Self::Sub(c,d) => Self::Sub(Box::new(Self::Mul(c,b.clone()).convert()),Box::new(Self::Mul(d,b).convert())),
-                    Self::Diff(c,d) => Self::Mul(Box::new(c.apply_diff(vec![d])),b).convert(),
+                    Add(c,d) => Add(Box::new(Mul(c,b.clone())),Box::new(Mul(d,b))),
+                    Sub(c,d) => Sub(Box::new(Mul(c,b.clone())),Box::new(Mul(d,b))),
+                    Diff(c,d) => Mul(Box::new(c.apply_diff(vec![d])),b).convert(),
                     _ => match *b {
-                        Self::Add(c,d) => Self::Add(Box::new(Self::Mul(a.clone(),c).convert()),Box::new(Self::Mul(a,d).convert())),
-                        Self::Sub(c,d) => Self::Sub(Box::new(Self::Mul(a.clone(),c).convert()),Box::new(Self::Mul(a,d).convert())),
-                        Self::Diff(c,d) => Self::Mul(a,Box::new(c.apply_diff(vec![d]))).convert(),
+                        Add(c,d) => Add(Box::new(Mul(a.clone(),c)),Box::new(Mul(a,d))),
+                        Diff(c,d) => Mul(a,Box::new(c.apply_diff(vec![d]))).convert(),
                         _ => match *a {
-                            Self::Vect(a) => match *b {
-                                Self::Vect(b) => if a.len() != b.len() { 
+                            Vect(a) => match *b {
+                                Vect(b) => if a.len() != b.len() { 
                                     panic!("Vect must have the same len in SPDEToken::Mul") 
                                 } else { 
-                                    let mut tmp = a.into_iter().enumerate().map(|(i,v)| Self::Mul(Box::new(Self::Const(v)),Box::new(Self::Const(b[i]))));
+                                    let mut tmp = a.into_iter().enumerate().map(|(i,v)| Mul(Box::new(Const(v)),Box::new(Const(b[i]))));
                                     let first = tmp.next().unwrap();
-                                    tmp.fold(first,|a,i| Self::Add(Box::new(a),Box::new(i)))
+                                    tmp.fold(first,|a,i| Add(Box::new(a),Box::new(i)))
                                 },
-                                Self::Indx(b) => if let Vector(b) = b {
+                                Indx(b) => if let Vector(b) = b {
                                     if a.len() != b.len() { 
                                         panic!("Vect and Indx(Vector(..)) must have the same len in SPDEToken::Mul") 
                                     } else { 
-                                        let mut tmp = a.into_iter().enumerate().map(|(i,v)| Self::Mul(Box::new(Self::Const(v)),Box::new(Self::Indx(Scalar(b[i].clone())))));
+                                        let mut tmp = a.into_iter().enumerate().map(|(i,v)| Mul(Box::new(Const(v)),Box::new(Indx(Scalar(b[i].clone())))));
                                         let first = tmp.next().unwrap();
-                                        tmp.fold(first,|a,i| Self::Add(Box::new(a),Box::new(i)))
+                                        tmp.fold(first,|a,i| Add(Box::new(a),Box::new(i)))
                                     }
                                 } else {
                                     panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
                                 },
                                 _ => panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
                             },
-                            Self::Indx(a) => match a{
+                            Indx(a) => match a{
                                 Vector(a) =>
                                     match *b {
-                                        Self::Vect(b) => if a.len() != b.len() { 
+                                        Vect(b) => if a.len() != b.len() { 
                                             panic!("Vect must have the same len in SPDEToken::Mul") 
                                         } else { 
-                                            let mut tmp = a.into_iter().enumerate().map(|(i,v)| Self::Mul(Box::new(Self::Indx(Scalar(v))),Box::new(Self::Const(b[i]))));
+                                            let mut tmp = a.into_iter().enumerate().map(|(i,v)| Mul(Box::new(Indx(Scalar(v))),Box::new(Const(b[i]))));
                                             let first = tmp.next().unwrap();
-                                            tmp.fold(first,|a,i| Self::Add(Box::new(a),Box::new(i)))
+                                            tmp.fold(first,|a,i| Add(Box::new(a),Box::new(i)))
                                         },
-                                        Self::Indx(b) => if let Vector(b) = b {
+                                        Indx(b) => if let Vector(b) = b {
                                             if a.len() != b.len() { 
                                                 panic!("Vect and Indx(Vector(..)) must have the same len in SPDEToken::Mul") 
                                             } else { 
-                                                let mut tmp = a.into_iter().enumerate().map(|(i,v)| Self::Mul(Box::new(Self::Indx(Scalar(v))),Box::new(Self::Indx(Scalar(b[i].clone())))));
+                                                let mut tmp = a.into_iter().enumerate().map(|(i,v)| Mul(Box::new(Indx(Scalar(v))),Box::new(Indx(Scalar(b[i].clone())))));
                                                 let first = tmp.next().unwrap();
-                                                tmp.fold(first,|a,i| Self::Add(Box::new(a),Box::new(i)))
+                                                tmp.fold(first,|a,i| Add(Box::new(a),Box::new(i)))
                                             }
                                         } else {
                                             panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
@@ -260,32 +275,48 @@ impl SPDETokens {
                                         _ => panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
                                     },
                                 Scalar(a) => {
-                                    Self::Mul(Box::new(Self::Indx(Scalar(a))),Box::new(b.convert()))
+                                    Mul(Box::new(Indx(Scalar(a))),b)
                                 }
                             },
-                            _ => Self::Mul(Box::new(a.convert()),Box::new(b.convert())),    
+                            _ => Mul(a,b),    
                         },
                     },
                 }
             },
-            Self::Div(a,b) => Self::Div(Box::new(a.convert()),Box::new(b.convert())),
-            Self::Diff(a,d) => a.apply_diff(vec![d]),
-            Self::Vect(_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by an other vector."),
-            Self::Indx(a) => if let Scalar(_) = &a { Self::Indx(a) } else { panic!("Cannot convert IndexingTypes::Vector, it should have been multiplied by an other vector.") },
+            Diff(a,d) => a.apply_diff(vec![d]),
+            Vect(_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by an other vector."),
+            Indx(a) => if let Scalar(_) = &a { Indx(a) } else { panic!("Cannot convert IndexingTypes::Vector, it should have been multiplied by an other vector.") },
             _ => self,
         }
     }
 
-    fn apply_diff(self, mut diffs: Vec<DiffDir>) -> Self {
+    fn apply_idx(self, idx: &[i32;4]) -> Box<Self> {
+        use SPDETokens::*;
         match self {
-            Self::Diff(a,d) => { diffs.push(d); a.apply_diff(diffs) },
-            Self::Indx(a) => {
-                let mut it = a.apply_diffs(&diffs[..]).into_iter().map(|i| Self::Indx(i));
+            Add(a,b) => Add(a.apply_idx(idx),b.apply_idx(idx)),
+            Sub(a,b) => Sub(a.apply_idx(idx),b.apply_idx(idx)),
+            Mul(a,b) => Mul(a.apply_idx(idx),b.apply_idx(idx)),
+            Div(a,b) => Div(a.apply_idx(idx),b.apply_idx(idx)),
+            Diff(a,d) => Diff(a,d),//TODO remove and put recursive diff: a.apply_diff(d).apply_idx(idx)
+            Func(n,a) => Func(n,a.apply_idx(idx)),
+            Indx(a) => Indx(a.apply_idx(idx)),
+            _ => self
+        }.into()
+    }
+
+    fn apply_diff(self, mut diffs: Vec<DiffDir>) -> Self {
+        use SPDETokens::*;
+        match self {
+            Diff(a,d) => { diffs.push(d); a.apply_diff(diffs) },
+            Indx(a) => {
+                let mut it = a.apply_diffs(&diffs[..]).into_iter().map(|i| Indx(i));
                 let first = it.next().unwrap();
-                it.fold(first, |a,i| Self::Add(Box::new(a),Box::new(i)))
+                it.fold(first, |a,i| Add(Box::new(a),Box::new(i)))
             },//TODO add the possibility to Diff over Sum,Mul,...
             _ => panic!("Diff can only be applied to Diff or Indexable."),
         }
+        //TODO remove up, then change diffs to d: DiffDir, then match d and create
+        //Div(Sub(left.apply_idx(1/0),right.apply_idx(0/-1)),Symb(dx))
     }
 }
 

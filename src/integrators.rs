@@ -10,22 +10,22 @@ use crate::descriptors::{Types,ConstructorTypes};
 pub mod pde_ir;
 use pde_ir::*;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct PDE<'a> {
-    pub dependant_var: &'a str,
+    pub dvar: &'a str,
     pub expr: PDETokens<'a>,
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SPDE {
-    pub dependant_var: String,
+    pub dvar: String,
     pub expr: String,
 }
 
 impl<'a> From<&PDE<'a>> for SPDE {
     fn from(de: &PDE) -> SPDE {
         SPDE {
-            dependant_var: de.dependant_var.into(),
+            dvar: de.dvar.into(),
             expr: de.expr.to_ocl(),
         }
     }
@@ -37,17 +37,17 @@ impl<'a> From<&PDE<'a>> for SPDE {
 pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
     let name = name.to_string();
         let mut args = vec![KCBuffer("dst",CF64)];
-        args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dependant_var,CF64)));
+        args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dvar,CF64)));
         args.extend(params.iter().map(|t| KCParam(&t.0,t.1)));
     let needed = pdes.iter().map(|d| {
         NewKernel((&Kernel {
-            name: &format!("{}_{}", &name, &d.dependant_var),
+            name: &format!("{}_{}", &name, &d.dvar),
             args: args.clone(),
-            src: &format!("    uint _i = x+x_size*(y+y_size*z);\n    dst[_i] = {}[_i] + {}*({});", d.dependant_var, dt, d.expr),
+            src: &format!("    uint _i = x+x_size*(y+y_size*z);\n    dst[_i] = {}[_i] + {}*({});", d.dvar, dt, d.expr),
             needed: vec![],
         }).into())
     }).collect::<Vec<_>>();
-    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dependant_var),d.dependant_var.clone())).collect::<Vec<_>>();
+    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
     SAlgorithm {
         name: name.clone(),
         callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], other: Option<&dyn Any>| {

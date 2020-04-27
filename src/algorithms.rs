@@ -19,6 +19,7 @@ pub struct Algorithm<'a> { //TODO use one SC for each &'a str
     pub needed: Vec<Needed<'a>>
 }
 
+#[derive(Clone)]
 pub struct SAlgorithm {
     pub name: String,
     pub callback: Callback,
@@ -35,7 +36,7 @@ impl<'a> From<&Algorithm<'a>> for SAlgorithm {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum Needed<'a> { //TODO use one SC for each &'a str
     KernelName(&'a str),
     AlgorithmName(&'a str),
@@ -44,6 +45,7 @@ pub enum Needed<'a> { //TODO use one SC for each &'a str
 use Needed::*;
 use crate::functions::Needed::*;
 
+#[derive(Clone,Debug)]
 pub enum SNeeded {
     KernelName(String),
     AlgorithmName(String),

@@ -8,7 +8,7 @@ pub enum KernelArg<'a> { //TODO use one SC for each &'a str
     BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum SKernelArg {
     Param(String, Types),
     Buffer(String),
@@ -25,7 +25,7 @@ impl<'a> From<&KernelArg<'a>> for SKernelArg {
     }
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum BufferConstructor {
     Len(Types,usize), // Len(repeated value, len)
     Data(VecTypes),
@@ -38,7 +38,7 @@ pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
     KCConstBuffer(&'a str, ConstructorTypes),
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum SKernelConstructor {
     KCParam(String, ConstructorTypes),
     KCBuffer(String, ConstructorTypes),
@@ -63,7 +63,7 @@ pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
     FCConstPtr(&'a str, ConstructorTypes),
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum SFunctionConstructor {
     FCParam(String, ConstructorTypes),
     FCPtr(String, ConstructorTypes),

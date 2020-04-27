@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::functions::{Needed::{self,*},SNeeded};
 use serde::{Serialize,Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub name: &'a str,
     pub args: Vec<KernelConstructor<'a>>,
@@ -12,7 +12,7 @@ pub struct Kernel<'a> { //TODO use one SC for each &'a str
     pub needed: Vec<Needed<'a>>,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SKernel {
     pub name: String,
     pub args: Vec<SKernelConstructor>,

@@ -2,7 +2,7 @@ use crate::functions::{Function,SFunction};
 use crate::descriptors::{ConstructorTypes::CF64,FunctionConstructor::*};
 
 // each steps length for each respective dimensions must be constant.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct DataFile {
     pub dx: Vec<f64>, // the difference between each steps for each dimensions.
     pub lenx: Vec<usize>,
@@ -10,6 +10,7 @@ pub struct DataFile {
     pub data: Vec<f64>,
 }
 
+#[derive(Debug,Clone)]
 pub enum Format<'a> {
     Column(&'a str),
 }

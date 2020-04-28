@@ -10,7 +10,7 @@ use std::any::Any;
 use crate::DimDir::{*,self};
 
 //Fn(handler: &mut Handler, dim: Dim, dim_dir: &[DimDir], buf_names: Vec<String>, other_args: Option<&dyn Any>)
-pub type Callback = Rc<dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<()>>;
+pub type Callback = Rc<dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<Option<Box<dyn Any>>>>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> { //TODO use one SC for each &'a str
@@ -320,7 +320,7 @@ macro_rules! algo_gen {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], _: Option<&dyn Any>| {
                 $algo_macro!(doing $name, $Eb|$Ebp $Ep|$Ep_, h, dim, dirs, bufs);
-                Ok(())
+                Ok(None)
             }),
             needed: $algo_macro!(nedeed
                 NewKernel(Kernel {
@@ -392,7 +392,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 }
                 h.run_arg("cdivides",D1((num*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
 
-                Ok(())
+                Ok(None)
             }),
             needed: vec![
                 KernelName("times"),

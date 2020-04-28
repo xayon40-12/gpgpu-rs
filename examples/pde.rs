@@ -44,7 +44,7 @@ fn simple_int() -> gpgpu::Result<()> {
         .create_algorithm(create_euler_pde("simple",2.0/m as f64,vec![
                 SPDE{ dvar: "u".into(), expr: "v[_i]".into() },
                 SPDE{ dvar: "v".into(), expr: "a".into() },
-        ],vec![("a".into(),CF64)]))
+        ],None,vec![("a".into(),CF64)]))
         .build()?;
 
     let args = vec![("a".to_string(),F64(1.0))];
@@ -68,7 +68,7 @@ fn diffusion_int() -> gpgpu::Result<()> {
         .add_buffer("dst", Len(0.0.into(),l))
         .create_algorithm(create_euler_pde("diffusion",dt,vec![
                 SPDE{ dvar: "u".into(), expr: "D*(u[(x+1)%x_size]-2*u[x]+u[(x-1)%x_size])*ivdx*ivdx".into() },
-        ],vec![("D".into(),CF64),("ivdx".into(),CF64)]))
+        ],None,vec![("D".into(),CF64),("ivdx".into(),CF64)]))
         .build()?;
 
     let args = vec![("D".to_string(),F64(5.0)),("ivdx".to_string(),F64(0.17))];
@@ -106,7 +106,7 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
         })
         .create_algorithm(create_euler_pde("diffusion",dt,vec![
                 SPDE{ dvar: "u".into(), expr },
-        ],vec![("D".into(),CF64),("ivdx".into(),CF64)]))
+        ],None,vec![("D".into(),CF64),("ivdx".into(),CF64)]))
         .build()?;
 
     let args = vec![("D".to_string(),F64(5.0)),("ivdx".to_string(),F64(0.17))];

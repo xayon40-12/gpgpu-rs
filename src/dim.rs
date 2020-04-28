@@ -15,6 +15,14 @@ impl Dim {
             Self::D3(..) => 3,
         }
     }
+    pub fn all_dirs(&self) -> Vec<DimDir> {
+        use DimDir::*;
+        match self {
+            Self::D1(..) => vec![X],
+            Self::D2(..) => vec![X,Y],
+            Self::D3(..) => vec![X,Y,Z],
+        }
+    }
 }
 
 #[derive(Deserialize,Serialize,Debug,Clone,Copy,PartialEq,PartialOrd,Eq,Ord)]

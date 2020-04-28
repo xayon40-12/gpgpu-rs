@@ -85,7 +85,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<()> {
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Box<dyn Any>>> {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
 

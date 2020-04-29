@@ -21,6 +21,7 @@ fn main() -> gpgpu::Result<()> {
 fn pde_generator_test() -> gpgpu::Result<()> {
     let u = Indx(IndexingTypes::new_vector(2,"u","b"));
     let T = Indx(IndexingTypes::new_scalar(1,"T","b"));
+    let t = Indx(IndexingTypes::new_scalar(2,"t","b"));
     let v = Vect(&[&Const(1.0),&Const(2.0)]);
     let f = Forward(vec![X,Y]);
     let b = Backward(vec![X,Y]);
@@ -31,6 +32,7 @@ fn pde_generator_test() -> gpgpu::Result<()> {
     println!("{:?}\n", &Mul(&Diff(&Diff(&u,&f),&b),&v).to_ocl());
     println!("{:?}\n", &Func("cos",&Mul(&u,&v)).to_ocl());
     println!("{:?}\n", &Diff(&Diff(&T,&F),&B).to_ocl());
+    println!("{:?}\n", &Diff(&t,&f).to_ocl());
     Ok(())
 }
 

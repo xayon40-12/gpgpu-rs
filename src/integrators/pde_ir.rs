@@ -139,7 +139,7 @@ impl SPDETokens {
     }
     pub fn to_ocl(self) -> Vec<String> {
         use SPDETokens::*;
-        match self {
+        match self.convert() {
             Indx(Vector(v)) => v.into_iter().map(|i| i.to_string()).collect(),
             Vect(v) => v.into_iter().map(|i| i._to_ocl()).collect(),
             s @ _ => vec![s._to_ocl()],
@@ -204,7 +204,7 @@ impl SPDETokens {
             },
             Diff(a,d) => a.apply_diff(d),
             Vect(_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by an other vector."),
-            Indx(a) => if let Scalar(_) = &a { Indx(a) } else { panic!("Cannot convert IndexingTypes::Vector, it should have been multiplied by an other vector.") },
+            Indx(Vector(_)) => panic!("Cannot convert IndexingTypes::Vector, it should have been multiplied by an other vector."),
             _ => self,
         }
     }

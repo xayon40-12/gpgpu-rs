@@ -1,4 +1,4 @@
-use gpgpu::integrators::{*,pde_ir::{*,PDETokens::*,DiffDir::*},create_euler_pde};
+use gpgpu::integrators::{*,pde_ir::ir_helper::*,create_euler_pde};
 use gpgpu::dim::{Dim::*,DimDir::*};
 use gpgpu::descriptors::{BufferConstructor::*,ConstructorTypes::*,Types::*,VecTypes::*,FunctionConstructor::*};
 use gpgpu::functions::Function;
@@ -19,20 +19,20 @@ fn main() -> gpgpu::Result<()> {
 
 #[allow(non_snake_case)]
 fn pde_generator_test() -> gpgpu::Result<()> {
-    let u = Indx(IndexingTypes::new_vector(2,"u","b"));
-    let T = Indx(IndexingTypes::new_scalar(1,"T","b"));
-    let t = Indx(IndexingTypes::new_scalar(2,"t","b"));
-    let v = Vect(&[&Const(1.0),&Const(2.0)]);
+    let u = Indexable::new_vector(2,"u","b");
+    let T = Indexable::new_scalar(1,"T","b");
+    let t = Indexable::new_scalar(2,"t","b");
+    let v = Vect(vec![Const(1.0),Const(2.0)]);
     let f = Forward(vec![X,Y]);
     let b = Backward(vec![X,Y]);
     let F = Forward(vec![X]);
     let B = Backward(vec![X]);
-    println!("{:?}\n", Add(&Mul(&Symb("a"),&Const(1.into())),&Sub(&Div(&Symb("b"),&Symb("c")),&Symb("d"))).to_ocl());
-    println!("{:?}\n", &Mul(&v,&Diff(&Diff(&u,&f),&b)).to_ocl());
-    println!("{:?}\n", &Mul(&Diff(&Diff(&u,&f),&b),&v).to_ocl());
-    println!("{:?}\n", &Func("cos",&Mul(&u,&v)).to_ocl());
-    println!("{:?}\n", &Diff(&Diff(&T,&F),&B).to_ocl());
-    println!("{:?}\n", &Diff(&t,&f).to_ocl());
+    println!("{:?}\n", (symb("a")*1.0/"c").to_ocl());
+    println!("{:?}\n", (&v*diff(diff(&u,&f),&b)).to_ocl());
+    println!("{:?}\n", (diff(diff(&u,&f),&b)*&v).to_ocl());
+    println!("{:?}\n", func("cos",&u*&v).to_ocl());
+    println!("{:?}\n", diff(diff(&T,&F),&B).to_ocl());
+    println!("{:?}\n", diff(&t,&f).to_ocl());
     Ok(())
 }
 
@@ -87,11 +87,11 @@ fn diffusion_int() -> gpgpu::Result<()> {
 
 #[allow(non_snake_case)]
 fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
-    let u = Indx(IndexingTypes::new_scalar(1,"u","b"));
-    let D = Symb("D");
+    let u = Indexable::new_scalar(1,"u","b");
+    let D = symb("D");
     let f = Forward(vec![X]);
     let b = Backward(vec![X]);
-    let expr = Mul(&D,&Diff(&Diff(&u,&f),&b)).to_ocl();
+    let expr = (D*diff(diff(u,f),b)).to_ocl();
 
     let l = 1<<24;
     let t = 10.0;

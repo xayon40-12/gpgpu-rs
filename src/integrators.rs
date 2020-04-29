@@ -10,25 +10,10 @@ use crate::descriptors::{Types,ConstructorTypes};
 pub mod pde_ir;
 use pde_ir::*;
 
-#[derive(Clone,Debug)]
-pub struct PDE<'a> {
-    pub dvar: &'a str,
-    pub expr: PDETokens<'a>,
-}
-
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SPDE {
     pub dvar: String,
     pub expr: Vec<String>,
-}
-
-impl<'a> From<&PDE<'a>> for SPDE {
-    fn from(de: &PDE) -> SPDE {
-        SPDE {
-            dvar: de.dvar.into(),
-            expr: de.expr.to_ocl(),
-        }
-    }
 }
 
 // Each PDE must be first order in time. A higher order PDE can be cut in multiple first order PDE.

@@ -26,11 +26,11 @@ fn pde_generator_test() -> gpgpu::Result<()> {
     let b = Backward(vec![X,Y]);
     let F = Forward(vec![X]);
     let B = Backward(vec![X]);
-    println!("{}\n", Add(&Mul(&Symb("a"),&Const(1.into())),&Sub(&Div(&Symb("b"),&Symb("c")),&Symb("d"))).to_ocl());
-    println!("{}\n", &Mul(&v,&Diff(&Diff(&u,&f),&b)).to_ocl());
-    println!("{}\n", &Mul(&Diff(&Diff(&u,&f),&b),&v).to_ocl());
-    println!("{}\n", &Func("cos",&Mul(&u,&v)).to_ocl());
-    println!("{}\n", &Diff(&Diff(&T,&F),&B).to_ocl());
+    println!("{:?}\n", Add(&Mul(&Symb("a"),&Const(1.into())),&Sub(&Div(&Symb("b"),&Symb("c")),&Symb("d"))).to_ocl());
+    println!("{:?}\n", &Mul(&v,&Diff(&Diff(&u,&f),&b)).to_ocl());
+    println!("{:?}\n", &Mul(&Diff(&Diff(&u,&f),&b),&v).to_ocl());
+    println!("{:?}\n", &Func("cos",&Mul(&u,&v)).to_ocl());
+    println!("{:?}\n", &Diff(&Diff(&T,&F),&B).to_ocl());
     Ok(())
 }
 
@@ -42,8 +42,8 @@ fn simple_int() -> gpgpu::Result<()> {
         .add_buffer("v", Len(3.0.into(),l))
         .add_buffer("dst", Len(0.0.into(),l))
         .create_algorithm(create_euler_pde("simple",2.0/m as f64,vec![
-                SPDE{ dvar: "u".into(), expr: "v[_i]".into() },
-                SPDE{ dvar: "v".into(), expr: "a".into() },
+                SPDE{ dvar: "u".into(), expr: vec!["v[_i]".into()] },
+                SPDE{ dvar: "v".into(), expr: vec!["a".into()] },
         ],None,vec![("a".into(),CF64)]))
         .build()?;
 
@@ -67,7 +67,7 @@ fn diffusion_int() -> gpgpu::Result<()> {
         .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
         .add_buffer("dst", Len(0.0.into(),l))
         .create_algorithm(create_euler_pde("diffusion",dt,vec![
-                SPDE{ dvar: "u".into(), expr: "D*(u[(x+1)%x_size]-2*u[x]+u[(x-1)%x_size])*ivdx*ivdx".into() },
+                SPDE{ dvar: "u".into(), expr: vec!["D*(u[(x+1)%x_size]-2*u[x]+u[(x-1)%x_size])*ivdx*ivdx".into()] },
         ],None,vec![("D".into(),CF64),("ivdx".into(),CF64)]))
         .build()?;
 

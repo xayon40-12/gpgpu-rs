@@ -237,6 +237,19 @@ macro_rules! gen_types {
                 }
             }
 
+            pub fn get_firsts(&self, num: usize) -> crate::Result<$VecTypes> {
+                match self {
+                    $(Self::$btype(v) => {
+                        let buf = v;
+                        let mut val = vec![Default::default();num];
+                        buf.read(&mut val).enq()?;
+                        Ok($VecTypes::$vtype(unsafe{
+                            std::mem::transmute::<_,Vec<$type_rust>>(val)
+                        }))
+                    },)+
+                }
+            }
+
             $(#[allow(non_snake_case)] pub fn $btype(self) -> ocl::Buffer<$type_ocl> {
                 if let Self::$btype(v) = self { v } else { panic!("Wrong variant for {}, expected {}, found {}", stringify!($BufferTypes),stringify!($btype),self.type_name_variant()) } //TODO better error description
             })+

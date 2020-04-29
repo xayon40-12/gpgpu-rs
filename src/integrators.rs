@@ -19,7 +19,7 @@ pub struct PDE<'a> {
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SPDE {
     pub dvar: String,
-    pub expr: String,
+    pub expr: Vec<String>,
 }
 
 impl<'a> From<&PDE<'a>> for SPDE {
@@ -46,10 +46,24 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
     }
     args.extend(params.iter().map(|t| KCParam(&t.0,t.1)));
     let needed = pdes.iter().map(|d| {
+        let mut id = "x+x_size*(y+y_size*z)".to_string();
+        let len = d.expr.len();
+        if len > 1 {
+            id = format!("{}*({})", len, id);
+        }
+        let expr = if len == 1 {
+            format!("    dst[_i] = {}[_i] + {}*({});\n", &d.dvar, dt, &d.expr[0])
+        } else {
+            let mut expr = String::new();
+            for i in 0..len {
+                expr += &format!("    dst[{}+{}*(_i)] = {}[_i] + {}*({});\n", i, len, &d.dvar, dt, &d.expr[0]);
+            }
+            expr
+        };
         NewKernel((&Kernel {
             name: &format!("{}_{}", &name, &d.dvar),
             args: args.clone(),
-            src: &format!("    uint _i = x+x_size*(y+y_size*z);\n    dst[_i] = {}[_i] + {}*({});", d.dvar, dt, d.expr),
+            src: &format!("    uint _i = {};\n{}", id, expr),
             needed: vec![],
         }).into())
     }).collect::<Vec<_>>();

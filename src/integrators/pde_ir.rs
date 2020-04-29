@@ -117,24 +117,32 @@ impl<'a> From<&PDETokens<'a>> for SPDETokens {
 }
 
 impl<'a> PDETokens<'a> {
-    pub fn to_ocl(&self) -> String {
+    pub fn to_ocl(&self) -> Vec<String> {
         SPDETokens::from(self).to_ocl()
     }
 }
 
 impl SPDETokens {
-    pub fn to_ocl(self) -> String {
+    pub fn _to_ocl(self) -> String {
         use SPDETokens::*;
         match self.convert() {
-            Add(a,b) => format!("({} + {})", a.to_ocl(), b.to_ocl()),
-            Sub(a,b) => format!("({} - {})", a.to_ocl(), b.to_ocl()),
-            Mul(a,b) => format!("{} * {}", a.to_ocl(), b.to_ocl()),
-            Div(a,b) => format!("{} / {}", a.to_ocl(), b.to_ocl()),
-            Func(n,a) => format!("{}({})",n,a.to_ocl()),
+            Add(a,b) => format!("({} + {})", a._to_ocl(), b._to_ocl()),
+            Sub(a,b) => format!("({} - {})", a._to_ocl(), b._to_ocl()),
+            Mul(a,b) => format!("{} * {}", a._to_ocl(), b._to_ocl()),
+            Div(a,b) => format!("{} / {}", a._to_ocl(), b._to_ocl()),
+            Func(n,a) => format!("{}({})",n,a._to_ocl()),
             Symb(a) => a,
             Const(a) => format!("{:e}",a),
             Indx(Scalar(a)) => a.to_string(),
             s @ _ => panic!("Not expected during SPDEToken::to_ocl: {:?}", s),
+        }
+    }
+    pub fn to_ocl(self) -> Vec<String> {
+        use SPDETokens::*;
+        match self {
+            Indx(Vector(v)) => v.into_iter().map(|i| i.to_string()).collect(),
+            Vect(v) => v.into_iter().map(|i| i._to_ocl()).collect(),
+            s @ _ => vec![s._to_ocl()],
         }
     }
 

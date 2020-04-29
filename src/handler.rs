@@ -46,6 +46,13 @@ impl Handler {
             .get_first()
     }
 
+    pub fn get_firsts(&self, name: &str, num: usize) -> crate::Result<VecTypes> {
+        self.buffers
+            .get(name)
+            .expect(&format!("Buffer \"{}\" not found",name))
+            .get_firsts(num)
+    }
+
     fn _set_arg(&self, name: &str, desc: &[KernelArg], kernel: &(Kernel,BTreeMap<String,u32>)) -> crate::Result<()> {
         for d in desc {
             match d {

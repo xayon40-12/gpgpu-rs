@@ -173,9 +173,9 @@ pub mod ir_helper {
 
     #[macro_export]
     macro_rules! vect {
-        ($($val:expr)+) => {
-            Vect(vec![$($val)+])
-        }
+        ($($val:expr),+) => {
+            Vect(vec![$($val),+])
+        };
     }
 }
 

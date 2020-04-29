@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate gpgpu;
 use gpgpu::integrators::{*,pde_ir::ir_helper::*,create_euler_pde};
 use gpgpu::dim::{Dim::*,DimDir::*};
 use gpgpu::descriptors::{BufferConstructor::*,ConstructorTypes::*,Types::*,VecTypes::*,FunctionConstructor::*};
@@ -22,7 +24,7 @@ fn pde_generator_test() -> gpgpu::Result<()> {
     let u = Indexable::new_vector(2,"u","b");
     let T = Indexable::new_scalar(1,"T","b");
     let t = Indexable::new_scalar(2,"t","b");
-    let v = Vect(vec![Const(1.0),Const(2.0)]);
+    let v = vect![Const(1.0),Const(2.0)];
     let f = Forward(vec![X,Y]);
     let b = Backward(vec![X,Y]);
     let F = Forward(vec![X]);

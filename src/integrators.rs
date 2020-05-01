@@ -8,12 +8,11 @@ use serde::{Serialize,Deserialize};
 use crate::descriptors::{Types,ConstructorTypes};
 
 pub mod pde_ir;
-use pde_ir::*;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SPDE {
     pub dvar: String,
-    pub expr: Vec<String>,
+    pub expr: Vec<String>,//one String for each dimension of the vectorial pde
 }
 
 // Each PDE must be first order in time. A higher order PDE can be cut in multiple first order PDE.
@@ -41,7 +40,7 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
         } else {
             let mut expr = String::new();
             for i in 0..len {
-                expr += &format!("    dst[{}+{}*(_i)] = {}[_i] + {}*({});\n", i, len, &d.dvar, dt, &d.expr[0]);
+                expr += &format!("    dst[{i}+_i] = {}[{i}+_i] + {}*({});\n", &d.dvar, dt, &d.expr[i], i = i);
             }
             expr
         };
@@ -83,8 +82,6 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
                     t = Some(params.0);
                     args.extend(params.1.iter().map(|i| Param(&i.0,i.1)));
                 }
-            } else {
-                panic!("There must be at least the time variable given (an f64)");
             }
             for i in (0..vars.len()).rev() {
                 h.run_arg(&vars[i].0,dim,&args)?;

@@ -205,7 +205,10 @@ macro_rules! gen_types {
             }
             pub fn copy(&self, to: &$BufferTypes) -> crate::Result<()>{
                 match self {
-                    $(Self::$btype(v) => v.copy(to.$btype_ref(),None,None).enq(),)+
+                    $(Self::$btype(v) => {
+                        let len = usize::min(to.$btype_ref().len(),v.len()); //WARNING automaticaly detect the smallest buffer and only copy the amount of elements this one can store
+                        v.copy(to.$btype_ref(),None,Some(len)).enq()
+                    },)+
                 }
             }
 

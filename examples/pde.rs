@@ -55,7 +55,7 @@ fn simple_int() -> gpgpu::Result<()> {
 
     let args = vec![("a".to_string(),F64(1.0))];
     for _ in 0..m {
-        gpu.run_algorithm("simple",D1(l),&[X],&["dst","u","v"],Some(&args))?;
+        gpu.run_algorithm("simple",D1(l),&[],&["dst","u","v"],Some(&args))?;
     }
     println!("dst: {:?}", gpu.get("dst")?.VF64());
     println!("u:   {:?}", gpu.get("u")?.VF64());
@@ -66,9 +66,9 @@ fn simple_int() -> gpgpu::Result<()> {
 use std::io::Write;
 use std::time::SystemTime;
 fn diffusion_int() -> gpgpu::Result<()> {
-    let l = 1<<21;
-    let t = 10.0;
-    let dt = 0.01;
+    let l = 1<<18;
+    let t = 7.0e-3;
+    let dt = 3e-7;
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
         .add_buffer("dst", Len(0.0.into(),l))
@@ -77,12 +77,12 @@ fn diffusion_int() -> gpgpu::Result<()> {
         ],None,vec![("D".into(),CF64),("ivdx".into(),CF64)]))
         .build()?;
 
-    let args = vec![("D".to_string(),F64(2.0)),("ivdx".to_string(),F64(2.0))];
+    let args = vec![("D".to_string(),F64(1.0)),("ivdx".to_string(),F64(10.0))];
     let m = (t/dt) as usize;
     let start = SystemTime::now();
     for i in 0..m {
         if i%(m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
-        gpu.run_algorithm("diffusion",D1(l),&[X],&["dst","u"],Some(&args))?;
+        gpu.run_algorithm("diffusion",D1(l),&[],&["dst","u"],Some(&args))?;
     }
     println!("{} s / {} steps / {} elements", SystemTime::now().duration_since(start).unwrap().as_millis() as f64/1000.0, m, l);
     println!("u[0]: {:?} <-> {}", gpu.get_first("u")?.F64(), (l-1) as f64/2.0);
@@ -110,7 +110,7 @@ fn diffusion_int_vect() -> gpgpu::Result<()> {
     let start = SystemTime::now();
     for i in 0..m {
         if i%(m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
-        gpu.run_algorithm("diffusion",D1(l),&[X],&["dst","u"],None)?;
+        gpu.run_algorithm("diffusion",D1(l),&[],&["dst","u"],None)?;
     }
     println!("{} s / {} steps / {} elements", SystemTime::now().duration_since(start).unwrap().as_millis() as f64/1000.0, m, l);
     println!("u[0]: {:?} <-> 1", gpu.get_firsts("u",9)?.VF64());
@@ -148,7 +148,7 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
     let start = SystemTime::now();
     for i in 0..m {
         if i%(m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
-        gpu.run_algorithm("diffusion",D1(l),&[X],&["dst","u"],Some(&args))?;
+        gpu.run_algorithm("diffusion",D1(l),&[],&["dst","u"],Some(&args))?;
     }
     println!("{} s / {} steps / {} elements", SystemTime::now().duration_since(start).unwrap().as_millis() as f64/1000.0, m, l);
     println!("u[0]: {:?} <-> {}", gpu.get_first("u")?.F64(), (l-1) as f64/2.0);

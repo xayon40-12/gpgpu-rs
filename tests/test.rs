@@ -298,8 +298,7 @@ fn data_file() -> gpgpu::Result<()> {
             name: "kern",
             args: vec![KCBuffer("u",CF64),KCBuffer("databuf",CF64)],
             src: "
-                double coord[] = {x,y,z};
-                u[x+x_size*(y+y_size*z)] = data(coord,databuf);
+                u[x+x_size*(y+y_size*z)] = data(x,y,z,databuf);
             ",
             needed: vec![],
         })
@@ -347,8 +346,7 @@ fn data_file_interpolated() -> gpgpu::Result<()> {
             args: vec![KCBuffer("u",CF64)],
             src: &format!("
                 double t = {};
-                double coord[] = {{x/t,y/t,z/t}};
-                u[x+x_size*(y+y_size*z)] = data(coord);
+                u[x+x_size*(y+y_size*z)] = data(x/t,y/t,z/t);
             ",t),
             needed: vec![],
         })

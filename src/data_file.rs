@@ -92,14 +92,20 @@ impl DataFile {
     }
 
     pub fn gen_func(&self, name: &str, content: String, huge: bool) -> SFunction {
+        let tmpargs = (0..self.dx.len()).map(|i| format!("c{}",i)).collect::<Vec<_>>();
+        let mut args = tmpargs.iter().map(|s| FCParam(s,CF64)).collect::<Vec<_>>();
+        if huge { args.push(FCGlobalPtr("data",CF64)); }
+
         if huge {
             let src = format!("
+                double coords[] = {{{}}};
                 double dx[] = {{{}}};
                 ulong lenx[] = {{{}}};
                 double start[] = {{{}}};
 
                 {}
             ",
+            (0..self.dx.len()).map(|i| format!("c{}",i)).collect::<Vec<_>>().join(","),
             self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
             self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
@@ -107,13 +113,14 @@ impl DataFile {
 
             (&Function {
                 name: name,
-                args: vec![FCPtr("coords",CF64),FCGlobalPtr("data",CF64)],
+                args,
                 ret_type: Some(CF64),
                 src: &src,
                 needed: vec![],
             }).into()
         } else {
             let src = format!("
+                double coords[] = {{{}}};
                 double dx[] = {{{}}};
                 ulong lenx[] = {{{}}};
                 double start[] = {{{}}};
@@ -121,6 +128,7 @@ impl DataFile {
 
                 {}
             ",
+            (0..self.dx.len()).map(|i| format!("c{}",i)).collect::<Vec<_>>().join(","),
             self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
             self.start.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
@@ -129,7 +137,7 @@ impl DataFile {
 
             (&Function {
                 name: name,
-                args: vec![FCPtr("coords",CF64)],
+                args,
                 ret_type: Some(CF64),
                 src: &src,
                 needed: vec![],

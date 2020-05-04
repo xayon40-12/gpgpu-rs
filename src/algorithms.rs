@@ -125,7 +125,7 @@ macro_rules! center {
     uint zp = (uint[2]){z,x_size*y_size*(z_size/2)}[dir.z];
     uint id = w*(x+y+z);
     uint idp = w*(xp+yp+zp);
-    for(int i = 0; i<w; i++) {
+    for(int _iw_ = 0; _iw_<w; _iw_++) {
         ",$src,"
         id++; idp++;
     }")
@@ -216,7 +216,7 @@ macro_rules! logreduce {
     uint zp = z+(uint[3]){0,0,size.x*size.y*s/2}[dir];
     uint id = w*(x+y+z);
     uint idp = w*(xp+yp+zp);
-    for(int i = 0; i<w; i++) {
+    for(int _iw_ = 0; _iw_<w; _iw_++) {
         ",$src,"
         id++; idp++;
     }")
@@ -283,7 +283,7 @@ macro_rules! log {
                 i += 1; j += 1;
                 $h.run_arg(concat!("algo_",$name),$dim,&[BufArg(sd[(j+m)%2],"src"),BufArg(sd[(j+m+1)%2],"dst"),Param("i",$Ep(i as _))]);
             }
-            $h.run_arg("cdivides",D1((l*$w*$Eb(Default::default()).len()) as _),&[BufArg(sd[(j+m+1)%2],"src"),Param("c",$Ebp(x as _)),BufArg(&sd[(j+m+1)%2],"dst")]);
+            $h.run_arg("cdivides",D1((l*$w as usize*$Eb(Default::default()).len()) as _),&[BufArg(sd[(j+m+1)%2],"src"),Param("c",$Ebp(x as _)),BufArg(&sd[(j+m+1)%2],"dst")]);
             begi = 0;
         }
     };
@@ -304,7 +304,7 @@ macro_rules! log {
     uint id = w*(x+x_size*(y+y_size*z));
     uint ida = w*(xx+x_size*(yy+y_size*zz));
     uint idb = w*(xp+x_size*(yp+y_size*zp));
-    for(int i = 0; i<w; i++) {
+    for(int _iw_ = 0; _iw_<w; _iw_++) {
         ",$src,"
         id++; ida++; idb++;
     }")
@@ -324,11 +324,11 @@ macro_rules! algo_gen {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], option: Option<&dyn Any>| {
                 let w = if let Some(o) = option {
-                    if let Some(&w) = o.downcast_ref::<usize>() {
+                    if let Some(&w) = o.downcast_ref::<u32>() {
                         if w<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
                         w
                     } else {
-                        panic!("The optional vertorial dimension paramter of algorithm \"{}\" must be of type usize.",$name)
+                        panic!("The optional vertorial dimension paramter of algorithm \"{}\" must be of type u32.",$name)
                     }
                 } else {
                     1
@@ -373,10 +373,14 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                     dstsum
                     dst
                 );
-                let num: u32 = if let Some(p) = param {
-                    *p.downcast_ref().expect("Optional parameter of \"moment\" algorithm must be &U32.")
+                let (num,w): (u32,u32) = if let Some(p) = param {
+                    if let Some(&num) = p.downcast_ref::<u32>() {
+                        (num,1)
+                    } else {
+                        *p.downcast_ref().expect("Optional parameter of \"moment\" algorithm must be &u32 or &(u32,u32).")
+                    }
                 } else {
-                    4
+                    (4,1)
                 };
                 if num < 1 { panic!("There must be at least one moment calculated in \"moments\" algorithm."); }
 
@@ -386,23 +390,23 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                     D3(x,y,z) => (x*y*z,[x as u32,y as u32,z as u32])
                 };
 
-                h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],None)?;
+                h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],Some(&w))?;
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
-                h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",U32_4([num,sumlen,1,0].into())),Param("offset",U32(0))])?;
-                h.run("smove",D2(1,sumlen as usize))?;
+                h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",U32_4([num*w,sumlen,1,0].into())),Param("offset",U32(0))])?;
+                h.run("smove",D2(w as usize,sumlen as usize))?;
                 if num >= 1 {
-                    h.run_arg("times",D1(l),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
-                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(1))])?;
+                    h.run_arg("times",D1(l*w as usize),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Some(&w))?;
+                    h.run_arg("smove",D2(w as usize,sumlen as usize),&[Param("offset",U32(w))])?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
-                    h.run("times",D1(l))?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],None)?;
-                    h.run_arg("smove",D2(1,sumlen as usize),&[Param("offset",U32(i as u32))])?;
+                    h.run("times",D1(l*w as usize))?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Some(&w))?;
+                    h.run_arg("smove",D2(w as usize,sumlen as usize),&[Param("offset",U32(w*i as u32))])?;
                 }
-                h.run_arg("cdivides",D1((num*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
+                h.run_arg("cdivides",D1((num*w*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
 
                 Ok(None)
             }),
@@ -426,15 +430,17 @@ fn C(n: usize, k: usize) -> usize {
 }
 
 // Only for D1
-pub fn moments_to_cumulants(moments: &[f64]) -> Vec<f64> {
-    let len = moments.len();
-    let mut cumulants = vec![0.0; len];
-    for n in 0..len {
-        let mut m = 0.0;
-        for k in 0..n {
-            m += C(n,k) as f64*cumulants[k]*moments[n-k-1];
+pub fn moments_to_cumulants(moments: &[f64], w: usize) -> Vec<f64> {
+    let len = moments.len()/w;
+    let mut cumulants = vec![0.0; len*w];
+    for i in 0..w {
+        for n in 0..len {
+            let mut m = 0.0;
+            for k in 0..n {
+                m += C(n,k) as f64*cumulants[i+w*k]*moments[i+w*(n-k-1)];
+            }
+            cumulants[i+w*n] = moments[i+w*n] - m;
         }
-        cumulants[n] = moments[n] - m;
     }
 
     cumulants

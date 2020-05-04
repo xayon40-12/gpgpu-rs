@@ -100,6 +100,13 @@ pub fn functions() -> HashMap<&'static str,Function<'static>> {
             needed: vec![],
         },
         Function {
+            name: "c_times_conj",
+            args: vec![FCParam("a",CF64_2),FCParam("b",CF64_2)],
+            ret_type: Some(CF64_2),
+            src: "return (double2)(a.x*b.x+a.y*b.y, -a.x*b.y+a.y*b.x);",
+            needed: vec![],
+        },
+        Function {
             name: "c_divides",
             args: vec![FCParam("a",CF64_2),FCParam("b",CF64_2)],
             ret_type: Some(CF64_2),

@@ -287,6 +287,12 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
             needed: vec![FuncName("c_times".into())],
         },
         Kernel {
+            name: "kc_times_conj",
+            args: vec![KCBuffer("a",CF64_2),KCBuffer("b",CF64_2),KCBuffer("dst",CF64_2)],
+            src: "dst[x] = c_times_conj(a[x],b[x]);",
+            needed: vec![FuncName("c_times_conj".into())],
+        },
+        Kernel {
             name: "kc_divides",
             args: vec![KCBuffer("a",CF64_2),KCBuffer("b",CF64_2),KCBuffer("dst",CF64_2)],
             src: "dst[x] = c_divides(a[x],b[x]);",

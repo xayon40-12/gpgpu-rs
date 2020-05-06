@@ -9,8 +9,33 @@ use crate::descriptors::ConstructorTypes::*;
 use std::any::Any;
 use crate::DimDir::{*,self};
 
+pub enum AlgorithmParam<'a> {
+    Mut(&'a mut dyn Any),
+    Ref(&'a dyn Any),
+    Nothing,
+}
+use AlgorithmParam::*;
+
+impl<'a> AlgorithmParam<'a> {
+    pub fn downcast_ref<'b,T: 'static>(&self, error_msg: &'b str) -> &T {
+        if let Ref(r) = self {
+            r.downcast_ref().expect(error_msg)
+        } else {
+            panic!("{}",error_msg)
+        }
+    }
+
+    pub fn downcast_mut<'b,T: 'static>(&mut self, error_msg: &'b str) -> &mut T {
+        if let Mut(r) = self {
+            r.downcast_mut().expect(error_msg)
+        } else {
+            panic!("{}",error_msg)
+        }
+    }
+}
+
 //Fn(handler: &mut Handler, dim: Dim, dim_dir: &[DimDir], buf_names: Vec<String>, other_args: Option<&dyn Any>)
-pub type Callback = Rc<dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], Option<&dyn Any>) -> crate::Result<Option<Box<dyn Any>>>>;
+pub type Callback = Rc<dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], AlgorithmParam) -> crate::Result<Option<Box<dyn Any>>>>;
 
 #[derive(Clone)]
 pub struct Algorithm<'a> { //TODO use one SC for each &'a str
@@ -95,7 +120,7 @@ macro_rules! bufs {
 
 macro_rules! callback_gen {
     ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
-        Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: Option<&dyn Any>| $body)
+        Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: AlgorithmParam| $body)
     };
 }
 
@@ -322,8 +347,8 @@ macro_rules! algo_gen {
         #[allow(unused)]
         Algorithm {
             name: $name,
-            callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], option: Option<&dyn Any>| {
-                let w = if let Some(o) = option {
+            callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], option: AlgorithmParam| {
+                let w = if let Ref(o) = option {
                     if let Some(&w) = o.downcast_ref::<u32>() {
                         if w<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
                         w
@@ -373,7 +398,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                     dstsum
                     dst
                 );
-                let (num,w): (u32,u32) = if let Some(p) = param {
+                let (num,w): (u32,u32) = if let Ref(p) = param {
                     if let Some(&num) = p.downcast_ref::<u32>() {
                         (num,1)
                     } else {
@@ -390,20 +415,20 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                     D3(x,y,z) => (x*y*z,[x as u32,y as u32,z as u32])
                 };
 
-                h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],Some(&w))?;
+                h.run_algorithm("sum",dim,dirs,&[src,sum,dstsum],Ref(&w))?;
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
                 h.set_arg("smove",&[BufArg(&dstsum,"src"),BufArg(&dst,"dst"),Param("size",U32_4([num*w,sumlen,1,0].into())),Param("offset",U32(0))])?;
                 h.run("smove",D2(w as usize,sumlen as usize))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l*w as usize),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Some(&w))?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Ref(&w))?;
                     h.run_arg("smove",D2(w as usize,sumlen as usize),&[Param("offset",U32(w))])?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l*w as usize))?;
-                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Some(&w))?;
+                    h.run_algorithm("sum",dim,dirs,&[tmp,sum,dstsum],Ref(&w))?;
                     h.run_arg("smove",D2(w as usize,sumlen as usize),&[Param("offset",U32(w*i as u32))])?;
                 }
                 h.run_arg("cdivides",D1((num*w*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;

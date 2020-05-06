@@ -1,9 +1,8 @@
 use crate::descriptors::{KernelConstructor::*,ConstructorTypes::*,KernelArg::*};
 use crate::kernels::{Kernel};
-use crate::algorithms::{SAlgorithm,SNeeded::*};
+use crate::algorithms::{SAlgorithm,SNeeded::*,AlgorithmParam};
 use crate::Handler;
 use crate::dim::{Dim,DimDir};
-use std::any::Any;
 use serde::{Serialize,Deserialize};
 use crate::descriptors::{Types,ConstructorTypes};
 
@@ -13,6 +12,12 @@ pub mod pde_ir;
 pub struct SPDE {
     pub dvar: String,
     pub expr: Vec<String>,//one String for each dimension of the vectorial pde
+}
+
+pub struct IntegratorParam {
+    pub t: f64,
+    pub swap: usize,
+    pub args: Vec<(String,Types)>,
 }
 
 // Each PDE must be first order in time. A higher order PDE can be cut in multiple first order PDE.
@@ -53,46 +58,34 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
     }).collect::<Vec<_>>();
     SAlgorithm {
         name: name.clone(),
-        callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], other: Option<&dyn Any>| {
+        callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], mut other: AlgorithmParam| {
             // bufs[0] = dst
             // bufs[1,2,...] = differential equation buffer holders in the same order as giver for
             // create_euler function
             // bufs[i] must write in bufs[i-1]
             let num = len;
             if bufs.len() != num { panic!("Euler algorithm \"{}\" must be given {} buffer arguments.", &name, &num); }
-            let mut args = vec![BufArg(&bufs[0],"dst")];
+            let IntegratorParam{ref mut t,swap,args: iargs} = other
+                .downcast_mut("There must be an IntegratorParam struct given as optional argument in Euler integrator algorithm.");
+            let mut args = vec![BufArg(&bufs[1-*swap],"dst")];
             for i in 0..vars.len() {
-                args.push(BufArg(&bufs[i+1],&vars[i].1));
+                args.push(BufArg(&bufs[2*i+*swap],&vars[i].1));
             }
             if let Some(ns) = &needed_buffers {
-                let mut i = vars.len()+1;
+                let mut i = 2*vars.len();
                 for n in ns {
                     args.push(BufArg(&bufs[i],&n));
                     i+=1;
                 }
             }
-            let mut t = None;
-            if let Some(params) = other {
-                if let Some(time) = params.downcast_ref::<f64>() {
-                    t = Some(*time);
-                } else if let Some(params) = params.downcast_ref::<Vec<(String,Types)>>() {
-                    args.extend(params.iter().map(|i| Param(&i.0,i.1)));
-                } else {
-                    let params = params.downcast_ref::<(f64,Vec<(String,Types)>)>().expect(&format!("Parameters of \"{}\" Euler Algorithm must be (f64,Vec<(String,Types)>) or f64.",&name));
-                    t = Some(params.0);
-                    args.extend(params.1.iter().map(|i| Param(&i.0,i.1)));
-                }
-            }
+            args.extend(iargs.iter().map(|i| Param(&i.0,i.1)));
             for i in (0..vars.len()).rev() {
+                args[0] = BufArg(&bufs[2*i+1-*swap],"dst");
                 h.run_arg(&vars[i].0,dim,&args)?;
-                h.copy(bufs[0],bufs[i+1])?;
             }
 
-            if let Some(t) = t {
-                Ok(Some(Box::new(t+dt)))
-            } else {
-                Ok(None)
-            }
+            *t += dt;
+            Ok(None)
         }),
         needed
     }

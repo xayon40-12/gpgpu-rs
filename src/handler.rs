@@ -6,7 +6,7 @@ pub use handler_builder::HandlerBuilder;
 
 use crate::dim::{Dim,DimDir};
 use crate::descriptors::{KernelArg,BufferTypes,VecTypes,Types};
-use crate::algorithms::Callback;
+use crate::algorithms::{Callback,AlgorithmParam};
 use crate::data_file::DataFile;
 
 use std::any::Any;
@@ -92,7 +92,7 @@ impl Handler {
         }
     }
     
-    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: Option<&dyn Any>) -> crate::Result<Option<Box<dyn Any>>> {
+    pub fn run_algorithm(&mut self, name: &str, dim: Dim, dimdir: &[DimDir], bufs: &[&str], other_args: AlgorithmParam) -> crate::Result<Option<Box<dyn Any>>> {
         (self.algorithms.get(name).expect(&format!("Algorithm \"{}\" not found",name)).clone())(self,dim,dimdir,bufs,other_args)
     }
 

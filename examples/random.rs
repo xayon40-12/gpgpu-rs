@@ -2,7 +2,7 @@ use gpgpu::Handler;
 use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*};
 use gpgpu::{Dim,DimDir::*};
 use std::time::{SystemTime, UNIX_EPOCH};
-use gpgpu::algorithms::moments_to_cumulants;
+use gpgpu::algorithms::{moments_to_cumulants,AlgorithmParam::*};
 
 fn main() -> gpgpu::Result<()> {
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
@@ -33,11 +33,11 @@ fn main() -> gpgpu::Result<()> {
     let mut moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Some(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
-    println!("{:?}", moments_to_cumulants(&moms));
+    println!("{:?}", moments_to_cumulants(&moms,1));
     println!("{}", SystemTime::now().duration_since(start).unwrap().as_millis());
 
     println!("\nphilox4x64_10_normal");
@@ -45,11 +45,11 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise4",Dim::D1(len/4))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Some(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
-    println!("{:?}", moments_to_cumulants(&moms));
+    println!("{:?}", moments_to_cumulants(&moms,1));
     println!("{}", SystemTime::now().duration_since(start).unwrap().as_millis());
 
     println!("\nphilox4x32_10_normal");
@@ -57,11 +57,11 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise32",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Some(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
-    println!("{:?}", moments_to_cumulants(&moms));
+    println!("{:?}", moments_to_cumulants(&moms,1));
     println!("{}", SystemTime::now().duration_since(start).unwrap().as_millis());
 
     Ok(())

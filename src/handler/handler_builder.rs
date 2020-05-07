@@ -6,6 +6,7 @@ use crate::algorithms::{self,Algorithm,SAlgorithm,SNeeded,Callback};
 use crate::functions::{self,Function,SFunction,SNeeded as FSNeeded};
 use crate::data_file::{DataFile,Format};
 
+#[derive(Clone)]
 pub struct HandlerBuilder {
     available_kernels: HashMap<&'static str,Kernel<'static>>,
     available_algorithms: HashMap<&'static str,Algorithm<'static>>,

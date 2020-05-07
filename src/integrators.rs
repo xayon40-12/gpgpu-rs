@@ -28,7 +28,7 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
     let mut args = vec![KCBuffer("dst",CF64)];
     args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dvar,CF64)));
     let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
-    let mut len = vars.len()+1;
+    let mut len = 2*vars.len();
     if let Some(ns) = &needed_buffers { 
         args.extend(ns.iter().map(|n| KCBuffer(&n,CF64)));
         len += ns.len();
@@ -63,10 +63,9 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
             // bufs[1,2,...] = differential equation buffer holders in the same order as giver for
             // create_euler function
             // bufs[i] must write in bufs[i-1]
-            let num = len;
-            if bufs.len() != num { panic!("Euler algorithm \"{}\" must be given {} buffer arguments.", &name, &num); }
-            let IntegratorParam{ref mut t,swap,args: iargs} = other
-                .downcast_mut("There must be an IntegratorParam struct given as optional argument in Euler integrator algorithm.");
+            if bufs.len() != len { panic!("Euler algorithm \"{}\" must be given {} buffer arguments.", &name, &len); }
+            let IntegratorParam{ref mut t,ref mut swap,args: iargs} = other
+                .downcast_mut("There must be an Mut(&mut IntegratorParam) given as optional argument in Euler integrator algorithm.");
             let mut args = vec![BufArg(&bufs[1-*swap],"dst")];
             for i in 0..vars.len() {
                 args.push(BufArg(&bufs[2*i+*swap],&vars[i].1));
@@ -85,6 +84,7 @@ pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buff
             }
 
             *t += dt;
+            *swap = 1-*swap;
             Ok(None)
         }),
         needed

@@ -192,7 +192,7 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn build(self) -> ocl::Result<super::Handler> {
+    pub fn source_code(&self) -> String {
         let mut prog = String::new();
 
         for (name,(SFunction {src,args,ret_type,..},..)) in &self.functions {
@@ -239,9 +239,12 @@ impl HandlerBuilder {
             prog += src;
             prog += "\n}\n";
         }
-        
-        //TODO print the code (prog) to a file
-        #[cfg(debug_assertions)]eprintln!("{}", &prog);
+
+        prog
+    }
+
+    pub fn build(self) -> ocl::Result<super::Handler> {
+        let prog = self.source_code();
 
         let pq = ProQue::builder()
             .src(prog)

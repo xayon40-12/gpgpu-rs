@@ -31,17 +31,17 @@ impl DataFile {
     }
 
     pub fn to_function(&self, name: &str, huge: bool) -> SFunction {
-        self.gen_func(name, format!("
-            ulong idx[{len}];
-            for(int i = 0; i<{len}; i++) {{
-                idx[i] = (coords[i]-start[i]) / dx[i];
-            }}
-            ulong id = 0;
-            for(int i = 0; i<{len}; i++) {{
-                id += idx[i]*lenx[i];
-            }}
-            return data[id];
-        ",
+        self.gen_func(name, format!("    ulong idx[{len}];
+    for(int i = 0; i<{len}; i++) {{
+        idx[i] = (coords[i]-start[i]) / dx[i];
+    }}
+    ulong id = 0;
+    for(int i = 0; i<{len}; i++) {{
+        id += idx[i]*lenx[i];
+    }}
+    return data[id];
+"
+        ,
         len = self.dx.len()), huge)
     }
 
@@ -65,29 +65,28 @@ impl DataFile {
     }
 
     pub fn to_function_interpolated(&self, name: &str, huge: bool) -> SFunction {
-        self.gen_func(name, format!("
-            ulong xs[{len}];
-            double xsd[{len}];
-            for(int i = 0; i<{len}; i++) {{
-                xsd[i] = (coords[i]-start[i]) / dx[i];
-                xs[i] = xsd[i];
-                xsd[i] -= xs[i];
-            }}
-            double ys[1<<{len}];
-            for(int j = 0; j<(1<<{len}); j++) {{
-                ulong id = 0;
-                for(int i = 0; i<{len}; i++) {{
-                    id += (xs[i]+((j>>i)&1))*lenx[i];
-                }}
-                ys[j] = data[id];
-            }}
-            for(int i = 0; i<{len}; i++) {{
-                for(int j = 0; j<(1<<{len}); j+=(2<<i)) {{
-                    ys[j] = ys[j] + (ys[j+(1<<i)]-ys[j])*xsd[i];
-                }}
-            }}
-            return ys[0];
-        ",
+        self.gen_func(name, format!("    ulong xs[{len}];
+    double xsd[{len}];
+    for(int i = 0; i<{len}; i++) {{
+        xsd[i] = (coords[i]-start[i]) / dx[i];
+        xs[i] = xsd[i];
+        xsd[i] -= xs[i];
+    }}
+    double ys[1<<{len}];
+    for(int j = 0; j<(1<<{len}); j++) {{
+        ulong id = 0;
+        for(int i = 0; i<{len}; i++) {{
+            id += (xs[i]+((j>>i)&1))*lenx[i];
+        }}
+        ys[j] = data[id];
+    }}
+    for(int i = 0; i<{len}; i++) {{
+        for(int j = 0; j<(1<<{len}); j+=(2<<i)) {{
+            ys[j] = ys[j] + (ys[j+(1<<i)]-ys[j])*xsd[i];
+        }}
+    }}
+    return ys[0];"
+            ,
         len = self.dx.len()), huge)
     }
 
@@ -97,14 +96,14 @@ impl DataFile {
         if huge { args.push(FCGlobalPtr("data",CF64)); }
 
         if huge {
-            let src = format!("
-                double coords[] = {{{}}};
-                double dx[] = {{{}}};
-                ulong lenx[] = {{{}}};
-                double start[] = {{{}}};
+            let src = format!("    double coords[] = {{{}}};
+    double dx[] = {{{}}};
+    ulong lenx[] = {{{}}};
+    double start[] = {{{}}};
 
-                {}
-            ",
+    {}
+"
+            ,
             (0..self.dx.len()).map(|i| format!("c{}",i)).collect::<Vec<_>>().join(","),
             self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),
@@ -119,15 +118,15 @@ impl DataFile {
                 needed: vec![],
             }).into()
         } else {
-            let src = format!("
-                double coords[] = {{{}}};
-                double dx[] = {{{}}};
-                ulong lenx[] = {{{}}};
-                double start[] = {{{}}};
-                double data[] = {{{}}};
+            let src = format!("    double coords[] = {{{}}};
+    double dx[] = {{{}}};
+    ulong lenx[] = {{{}}};
+    double start[] = {{{}}};
+    double data[] = {{{}}};
 
-                {}
-            ",
+    {}
+"
+            ,
             (0..self.dx.len()).map(|i| format!("c{}",i)).collect::<Vec<_>>().join(","),
             self.dx.iter().map(f64::to_string).collect::<Vec<_>>().join(","),
             self.lenx.iter().map(usize::to_string).collect::<Vec<_>>().join(","),

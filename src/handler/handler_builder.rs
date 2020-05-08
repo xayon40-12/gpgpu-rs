@@ -13,7 +13,8 @@ pub struct HandlerBuilder {
     available_functions: HashMap<&'static str,Function<'static>>,
     kernels: HashMap<String,(SKernel,String)>,
     algorithms: HashMap<String,(Callback,String)>,
-    functions: HashMap<String,(SFunction,String)>,
+    existing_functions: HashMap<String,String>,
+    functions: HashMap<String,SFunction>,
     buffers: Vec<(String,BufferConstructor)>,
     data: HashMap<String, DataFile>,
 }
@@ -26,6 +27,7 @@ impl HandlerBuilder {
             available_functions: functions::functions(),
             kernels: HashMap::new(),
             algorithms: HashMap::new(),
+            existing_functions: HashMap::new(),
             functions: HashMap::new(),
             buffers: Vec::new(),
             data: HashMap::new(),
@@ -60,19 +62,21 @@ impl HandlerBuilder {
         function.needed = vec![];
 
         if let Some(as_name) = as_name {
-            if let Some((_,from)) = self.functions.get(&as_name) {
+            if let Some(from) = self.existing_functions.get(&as_name) {
                 panic!("Cannot add two functions with the same name \"{}\", already added by {}.",as_name,from);
             } else {
-                self.functions.insert(as_name.into(),(function,"User".into()));
+                self.existing_functions.insert(as_name.clone(),"User".into());
+                self.functions.insert(as_name,function);
             }
-        } else if let Some((_,from)) = self.functions.get(&name) {
+        } else if let Some(from) = self.existing_functions.get(&name) {
             if from == "User" {
                 panic!("Cannot add two functions with the same name \"{}\", already added by User.",name);
             } else {
                 return self;
             }
         } else {
-            self.functions.insert(name.clone(),(function,from.unwrap_or("".into())));//TODO verify if empty string here causes problem
+            self.existing_functions.insert(name.clone(),from.unwrap_or("".into()));//TODO verify if empty string here causes problem
+            self.functions.insert(name.clone(),function);
         }
         for n in needed {
             self = match n {
@@ -196,7 +200,7 @@ impl HandlerBuilder {
     pub fn source_code(&self) -> String {
         let mut prog = String::new();
 
-        for (name,(SFunction {src,args,ret_type,..},..)) in &self.functions {
+        for (name,SFunction {src,args,ret_type,..}) in &self.functions {
             prog += &if let Some(ret) = ret_type {
                 format!("\ninline {} {}(",ret.type_name_ocl(),name)
             } else {

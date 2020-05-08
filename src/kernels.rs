@@ -34,15 +34,15 @@ impl<'a> From<&Kernel<'a>> for SKernel {
 macro_rules! random {
     (philox4x32_10) => {
         "
-            unsigned int key[2] = {x>>32,x};
-            const unsigned int l = 4;
-            const unsigned int M = 0xD2511F53;
-            const unsigned int M2 = 0xCD9E8D57;
+            uint key[2] = {x>>32,x};
+            const uint l = 4;
+            const uint M = 0xD2511F53;
+            const uint M2 = 0xCD9E8D57;
             for(int i = 0;i<10;i++){
-                unsigned int hi0 = mul_hi(M,src[x*l+0]);
-                unsigned int lo0 = M * src[x*l+0];
-                unsigned int hi1 = mul_hi(M,src[x*l+2]);
-                unsigned int lo1 = M2 * src[x*l+2];
+                uint hi0 = mul_hi(M,src[x*l+0]);
+                uint lo0 = M * src[x*l+0];
+                uint hi1 = mul_hi(M,src[x*l+2]);
+                uint lo1 = M2 * src[x*l+2];
                 src[x*l+0] = hi1^key[1]^src[x*l+3];
                 src[x*l+2] = hi0^key[0]^src[x*l+1];
                 src[x*l+1] = lo0;
@@ -55,12 +55,12 @@ macro_rules! random {
     };
     (philox2x64_10) => { 
         "
-            unsigned long key = x;
-            const unsigned int l = 2;
-            const unsigned long M = 0xD2B74407B1CE6E93;
+            ulong key = x;
+            const uint l = 2;
+            const ulong M = 0xD2B74407B1CE6E93;
             for(int i = 0;i<10;i++){
-                unsigned long hi = mul_hi(M,src[x*l+0]);
-                unsigned long lo = M * src[x*l+0];
+                ulong hi = mul_hi(M,src[x*l+0]);
+                ulong lo = M * src[x*l+0];
                 src[x*l+0] = hi^key^src[x*l+1];
                 src[x*l+1] = lo;
                 key += 0x9E3779B97F4A7C15;
@@ -69,15 +69,15 @@ macro_rules! random {
     };
     (philox4x64_10) => {
         "
-            unsigned long key[2] = {0,x};
-            const unsigned int l = 4;
-            const unsigned long M = 0xD2B74407B1CE6E93;
-            const unsigned long M2 = 0xCA5A826395121157;
+            ulong key[2] = {0,x};
+            const uint l = 4;
+            const ulong M = 0xD2B74407B1CE6E93;
+            const ulong M2 = 0xCA5A826395121157;
             for(int i = 0;i<10;i++){
-                unsigned long hi0 = mul_hi(M,src[x*l+0]);
-                unsigned long lo0 = M * src[x*l+0];
-                unsigned long hi1 = mul_hi(M,src[x*l+2]);
-                unsigned long lo1 = M2 * src[x*l+2];
+                ulong hi0 = mul_hi(M,src[x*l+0]);
+                ulong lo0 = M * src[x*l+0];
+                ulong hi1 = mul_hi(M,src[x*l+2]);
+                ulong lo1 = M2 * src[x*l+2];
                 src[x*l+0] = hi1^key[1]^src[x*l+3];
                 src[x*l+2] = hi0^key[0]^src[x*l+1];
                 src[x*l+1] = lo0;

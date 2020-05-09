@@ -14,7 +14,6 @@ fn main() -> gpgpu::Result<()> {
         .add_buffer("num", Len(0.0.into(),len))
         .add_buffer("tmp", Len(0.0.into(),len))
         .add_buffer("sum", Len(0.0.into(),len))
-        .add_buffer("dstsum", Len(0.0.into(),len))
         .add_buffer("dst", Len(0.0.into(),nmom))
         .load_kernel_named("philox2x64_10_normal","noise")
         .load_kernel_named("philox4x64_10_normal","noise4")
@@ -33,7 +32,7 @@ fn main() -> gpgpu::Result<()> {
     let mut moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
@@ -45,7 +44,7 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise4",Dim::D1(len/4))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
@@ -57,7 +56,7 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise32",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dstsum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();

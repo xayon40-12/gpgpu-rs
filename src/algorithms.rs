@@ -88,7 +88,7 @@ impl<'a> From<&Needed<'a>> for SNeeded {
 }
 
 #[derive(Clone,Copy,Debug)]
-pub struct AvailableParam {
+pub struct ReduceParam {
     pub vect_dim: u32,
     pub dst_size: Option<[u32;4]>,
 }
@@ -124,6 +124,36 @@ macro_rules! bufs {
     };
 }
 
+macro_rules! param {
+    (logreduce $other:ident, $name:literal) => {
+        if let Ref(o) = $other {
+            if let Some(&ap) = o.downcast_ref::<ReduceParam>() {
+                if ap.vect_dim<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
+                ap
+            } else {
+                panic!("The optional parameter of algorithm \"{}\" must be of type ReduceParam.",$name)
+            }
+        } else {
+            ReduceParam { vect_dim: 1, dst_size: None }
+        }
+    };
+    (log $other:ident, $name:literal) => {
+        if let Ref(o) = $other {
+            if let Some(&w) = o.downcast_ref::<u32>() {
+                if w<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
+                w
+            } else {
+                panic!("The optional parameter of algorithm \"{}\" must be of type u32.",$name)
+            }
+        } else {
+            1
+        }
+    };
+    (center $other:ident, $name:literal) => {
+        param!(log $other, $name)
+    }
+}
+
 macro_rules! callback_gen {
     ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
         Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: AlgorithmParam| $body)
@@ -137,12 +167,12 @@ macro_rules! center {
     (kern_needed) => {
         vec![]
     };
-    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident, $ap:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident , $dirs:ident, $bufs:ident, $other:ident) => {
         bufs!($bufs, $name, 2,
             src
             dst
         );
-        let w = $ap.vect_dim;
+        let w = param!(center $other, $name);
         let mut dirs = [0u8,0,0,0];
         if $dirs.len() < 1 { panic!("There must be at least one direction given for algorithm \"{}\"", concat!("algo_",$name)); }
         $dirs.iter().for_each(|d| dirs[*d as usize] = 1);
@@ -174,13 +204,14 @@ macro_rules! logreduce {
     (kern_needed) => {
         vec![]
     };
-    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident, $ap:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident, $other:ident) => {
         bufs!($bufs, $name, 3,
             src
             tmp
             dst
         );
-        let w = $ap.vect_dim;
+        let ap = param!(logreduce $other, $name);
+        let w = ap.vect_dim;
 
         let len = |spacing,x| x/spacing + if (x/spacing)*spacing+spacing/2 < x { 1 } else { 0 };
         let (d, dims, mut size): (Box<dyn Fn(usize, DimDir, [usize;3]) -> Dim>, _, _) = match $dim {
@@ -237,7 +268,7 @@ macro_rules! logreduce {
         let mut dims = $dirs.iter().fold([size[0],size[1],size[2]], |mut a,dir| { a[*dir as usize] = 1; a });
         dims[0] *= w as u32;
         size[0] *= w as u32;
-        if let Some(dst_size) =  $ap.dst_size {
+        if let Some(dst_size) =  ap.dst_size {
             size[2] = size[1];
             size[1] = size[0];
             size[0] = 1;
@@ -273,13 +304,13 @@ macro_rules! log {
     (kern_needed) => {
         vec![FuncName("c_exp".into()),FuncName("c_times".into())]
     };
-    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident, $ap:ident) => {
+    (doing $name:literal, $Eb:ident|$Ebp:ident $Ep:ident|$Ep_:ident, $h:ident, $dim:ident, $dirs:ident, $bufs:ident, $other:ident) => {
         bufs!($bufs, $name, 3,
             src
             tmp
             dst
         );
-        let w = $ap.vect_dim;
+        let w = param!(log $other, $name);
         let (dims, size) = match $dim {
             D1(x) => {
                 if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
@@ -364,17 +395,7 @@ macro_rules! algo_gen {
         Algorithm {
             name: $name,
             callback: Rc::new(|h: &mut Handler, dim: Dim, dirs: &[DimDir], bufs: &[&str], option: AlgorithmParam| {
-                let ap = if let Ref(o) = option {
-                    if let Some(&ap) = o.downcast_ref::<AvailableParam>() {
-                        if ap.vect_dim<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
-                        ap
-                    } else {
-                        panic!("The optional paramter of algorithm \"{}\" must be of type AvailableParam.",$name)
-                    }
-                } else {
-                    AvailableParam { vect_dim: 1, dst_size: None }
-                };
-                $algo_macro!(doing $name, $Eb|$Ebp $Ep|$Ep_, h, dim, dirs, bufs, ap);
+                $algo_macro!(doing $name, $Eb|$Ebp $Ep|$Ep_, h, dim, dirs, bufs, option);
                 Ok(None)
             }),
             needed: $algo_macro!(nedeed
@@ -433,7 +454,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
                 let mut sizedst = [num*w,sumsize[0],sumsize[1],0];
-                let mut ap = AvailableParam{ vect_dim: w, dst_size: Some(sizedst) };
+                let mut ap = ReduceParam{ vect_dim: w, dst_size: Some(sizedst) };
                 h.run_algorithm("sum",dim,dirs,&[src,sum,dst],Ref(&ap))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l*w as usize),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;

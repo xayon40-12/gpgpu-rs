@@ -475,7 +475,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
 
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
-                let mut sizedst = [num*w,sumsize[0],sumsize[1],0];
+                let mut sizedst = [if packed { num*w } else { w },sumsize[0],sumsize[1],0];
                 let mut ap = ReduceParam{ vect_dim: w, dst_size: Some(Packing::new(sizedst, packed)) };
                 h.run_algorithm("sum",dim,dirs,&[src,sum,dst],Ref(&ap))?;
                 if num >= 1 {

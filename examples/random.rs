@@ -2,7 +2,7 @@ use gpgpu::Handler;
 use gpgpu::descriptors::{BufferConstructor::*,KernelArg::*};
 use gpgpu::{Dim,DimDir::*};
 use std::time::{SystemTime, UNIX_EPOCH};
-use gpgpu::algorithms::{moments_to_cumulants,AlgorithmParam::*};
+use gpgpu::algorithms::{moments_to_cumulants,AlgorithmParam::*,MomentsParam};
 
 fn main() -> gpgpu::Result<()> {
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
@@ -27,12 +27,14 @@ fn main() -> gpgpu::Result<()> {
 
     println!("Generating 10^{:.2} random numbers and computing the meam:", (((len*n) as f64).ln()/10f64.ln()));
 
+    let prm = MomentsParam{ num: nmom as u32, vect_dim: 1, packed: true };
+
     println!("\nphilox2x64_10_normal");
     let start = SystemTime::now();
     let mut moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
@@ -44,7 +46,7 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise4",Dim::D1(len/4))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();
@@ -56,7 +58,7 @@ fn main() -> gpgpu::Result<()> {
     moms = vec![0.0;nmom];
     for _ in 0..n {
         gpu.run("noise32",Dim::D1(len/2))?;
-        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&(nmom as u32)))?;
+        gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
     moms = moms.iter().map(|v| v/n as f64).collect();

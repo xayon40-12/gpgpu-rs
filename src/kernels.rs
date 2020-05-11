@@ -236,9 +236,15 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
             needed: vec![],
         },
         Kernel {
-            name: "ssmove",
+            name: "dmove",
             args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCParam("size",CU32_4),KCParam("dst_size",CU32_4)],
-            src: "    dst[dst_size.x*(x+dst_size.y*(y+dst_size.z*z)) + dst_size.w] = src[size.x*(x+size.y*(y+size.z*z)) + size.w];",
+            src: "    dst[dst_size.x*(x+dst_size.y*(y+dst_size.z*z)) + dst_size.w] = src[x+size.x*(y+size.y*z)];",
+            needed: vec![],
+        },
+        Kernel {
+            name: "rdmove",
+            args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCParam("size",CU32_4),KCParam("dst_size",CU32_4)],
+            src: "    dst[x+dst_size.y*(y+dst_size.z*(z+dst_size.x*dst_size.w))] = src[x+size.x*(y+size.y*z)];",
             needed: vec![],
         },
         Kernel {

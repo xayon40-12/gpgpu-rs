@@ -9,7 +9,7 @@ use gpgpu::descriptors::{
 };
 use gpgpu::kernels::Kernel;
 use gpgpu::{Dim,DimDir::*};
-use gpgpu::algorithms::AlgorithmParam::*;
+use gpgpu::algorithms::{AlgorithmParam::*,MomentsParam};
 
 #[test]
 fn simple_main() -> gpgpu::Result<()> {
@@ -238,19 +238,21 @@ fn moments() -> gpgpu::Result<()> {
         })
         .collect::<Vec<_>>();
 
-    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[X],&["src","tmp","sum","dstx"],Ref(&(n as u32)))?;
+    let prm = MomentsParam{ num: n as u32, vect_dim: 1, packed: true };
+
+    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[X],&["src","tmp","sum","dstx"],Ref(&prm))?;
     assert_eq!(gpu.get("dstx")?.VF64(), pow
         .chunks(x)
         .map(|c| c.into_iter().fold([0.0,0.0,0.0,0.0],|[a,b,c,d],(e,f,g,h)| [a+e,b+f,c+g,d+h]).iter().map(|i| i/x as f64).collect::<Vec<f64>>())
         .flatten().collect::<Vec<f64>>()
     ,"x");
-    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[Y],&["src","tmp","sum","dsty"],Ref(&(n as u32)))?;
+    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[Y],&["src","tmp","sum","dsty"],Ref(&prm))?;
     assert_eq!(gpu.get("dsty")?.VF64(), pow
         .chunks(x*z)
         .fold(vec![(0.0,0.0,0.0,0.0);x*z],|a,c| a.iter().enumerate().map(|(i,v)| (v.0+c[i].0,v.1+c[i].1,v.2+c[i].2,v.3+c[i].3)).collect())
         .iter().map(|&(a,b,c,d)| vec![a,b,c,d]).flatten().map(|i| i/y as f64).collect::<Vec<_>>()
     ,"y");
-    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[X,Y,Z],&["src","tmp","sum","dstxyz"],Ref(&(n as u32)))?;
+    gpu.run_algorithm("moments",Dim::D3(x,y,z),&[X,Y,Z],&["src","tmp","sum","dstxyz"],Ref(&prm))?;
     assert_eq!(gpu.get("dstxyz")?.VF64(), pow.iter()
         .fold([0.0,0.0,0.0,0.0],|a,c| [a[0]+c.0,a[1]+c.1,a[2]+c.2,a[3]+c.3])
         .iter().map(|i| i/(x*y*z) as f64).collect::<Vec<_>>()

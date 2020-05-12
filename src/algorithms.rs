@@ -104,9 +104,16 @@ impl Packing {
 }
 
 #[derive(Clone,Copy,Debug)]
+pub struct Window {
+    pub offset: usize,
+    pub len: usize,
+}
+
+#[derive(Clone,Debug)]
 pub struct ReduceParam {
     pub vect_dim: u32,
     pub dst_size: Option<Packing>,
+    pub window: Option<Vec<Window>>,
 }
 
 macro_rules! ifs {
@@ -143,14 +150,15 @@ macro_rules! bufs {
 macro_rules! param {
     (logreduce $other:ident, $name:literal) => {
         if let Ref(o) = $other {
-            if let Some(&ap) = o.downcast_ref::<ReduceParam>() {
+            if let Some(ap) = o.downcast_ref::<ReduceParam>() {
+                let ap = ap.clone();
                 if ap.vect_dim<1 { panic!("Vectorial dimension given as parameter of algorithm \"{}\" must be greater or equal to 1.",$name) }
                 ap
             } else {
                 panic!("The optional parameter of algorithm \"{}\" must be of type ReduceParam.",$name)
             }
         } else {
-            ReduceParam { vect_dim: 1, dst_size: None }
+            ReduceParam { vect_dim: 1, dst_size: None, window: None }
         }
     };
     (log $other:ident, $name:literal) => {
@@ -229,8 +237,21 @@ macro_rules! logreduce {
         let ap = param!(logreduce $other, $name);
         let w = ap.vect_dim;
 
+
+        let mut dim: [usize;3] = $dim.into();
+        let mut offs = [0;4];
+        if let Some(window) = &ap.window {
+            if window.len() != $dirs.len() { panic!("The window dimensions must be in the same number as directions and in the same order.") }
+            for (Window{offset: off,len},dir) in window.iter().zip($dirs.iter()) {
+                let d = *dir as usize;
+                if *len > dim[d] { panic!("Each len in window must be less or equal to the corresponding dim.") }
+                if off+len > dim[d] { panic!("The window must be inside the range of the corresponding dim (offset+len<=dim).") }
+                dim[d] = *len;
+                offs[d] = *off as u32;
+            }
+        }
         let len = |spacing,x| x/spacing + if (x/spacing)*spacing+spacing/2 < x { 1 } else { 0 };
-        let (d, dims, mut size): (Box<dyn Fn(usize, DimDir, [usize;3]) -> Dim>, _, _) = match $dim {
+        let (d, dims, mut size): (Box<dyn Fn(usize, DimDir, [usize;3]) -> Dim>, _, _) = match dim.into() {
             D1(x) => {
                 if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
                 (Box::new(move |s,dir,_| match dir {
@@ -270,7 +291,13 @@ macro_rules! logreduce {
             },
         };
 
-        $h.copy(src,tmp)?;
+        if ap.window.is_some() {
+            let size: [usize; 3] = $dim.into();
+            let size = [size[0] as u32, size[1] as u32];
+            $h.run_arg("omove", dim.into(), &[BufArg(src,"src"),BufArg(tmp,"dst"),Param("size",size.into()),Param("offsets",offs.into())])?;
+        } else {
+            $h.copy(src,tmp)?;
+        }
         let mut size_reduce = [size[0] as usize, size[1] as usize, size[2] as usize];
         for (x,dir) in dims {
             let mut spacing = 2;
@@ -430,7 +457,7 @@ macro_rules! algo_gen {
 
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug,Clone)]
 pub struct MomentsParam {
     pub num: u32,
     pub vect_dim: u32,
@@ -461,7 +488,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                     dst
                 );
                 let MomentsParam{ num, vect_dim: w, packed } = if let Ref(p) = param {
-                    *p.downcast_ref().expect("Optional parameter of \"moment\" algorithm must be MomentsParam.")
+                    p.downcast_ref::<MomentsParam>().expect("Optional parameter of \"moment\" algorithm must be MomentsParam.").clone()
                 } else {
                     MomentsParam{ num: 4, vect_dim: 1, packed: true }
                 };
@@ -476,7 +503,7 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 let sumsize = dirs.iter().fold(size.clone(), |mut a,dir| { a[*dir as usize] = 1; a });
                 let sumlen = sumsize[0]*sumsize[1]*sumsize[2];
                 let mut sizedst = [if packed { num } else { 1 },sumsize[0],sumsize[1],0];
-                let mut ap = ReduceParam{ vect_dim: w, dst_size: Some(Packing::new(sizedst, packed)) };
+                let mut ap = ReduceParam{ vect_dim: w, dst_size: Some(Packing::new(sizedst, packed)), window: None };
                 h.run_algorithm("sum",dim,dirs,&[src,sum,dst],Ref(&ap))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l*w as usize),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;

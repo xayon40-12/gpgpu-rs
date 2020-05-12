@@ -223,7 +223,7 @@ macro_rules! center {
 
 macro_rules! logreduce {
     (nedeed $kern:expr) => {
-        vec![$kern,KernelName("dmove"),KernelName("rdmove"),KernelName("move")]
+        vec![$kern,KernelName("dmove"),KernelName("rdmove"),KernelName("move"),KernelName("omove")]
     };
     (kern_needed) => {
         vec![]
@@ -253,7 +253,7 @@ macro_rules! logreduce {
         let len = |spacing,x| x/spacing + if (x/spacing)*spacing+spacing/2 < x { 1 } else { 0 };
         let (d, dims, mut size): (Box<dyn Fn(usize, DimDir, [usize;3]) -> Dim>, _, _) = match dim.into() {
             D1(x) => {
-                if x<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
+                if x<1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {})", $name, x); }
                 (Box::new(move |s,dir,_| match dir {
                     X => D1(len(s,x)),
                     _ => panic!("Direction \"{:?}\" is not accessible with dimension \"{:?}\" in algorithm \"{}\"", dir, $dim, $name),
@@ -262,7 +262,7 @@ macro_rules! logreduce {
                 [x as _,1,1,0])
             },
             D2(x,y) => {
-                if x<=1 || y<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
+                if x<1 || y<1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {})", $name, x, y); }
                 (Box::new(move |s,dir,size| match dir {
                     X => D2(len(s,x),size[1]),
                     Y => D2(size[0],len(s,y)),
@@ -276,7 +276,7 @@ macro_rules! logreduce {
                 [x as _,y as _,1,0])
             },
             D3(x,y,z) => {
-                if x<=1 || y<=1 || z<=1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {}, z: {})", $name, x, y, z); }
+                if x<1 || y<1 || z<1 { panic!("Each given dim in algorithm \"{}\" must be strictly greater than 1, given (x: {}, y: {}, z: {})", $name, x, y, z); }
                 (Box::new(move |s,dir,size| match dir {
                     X => D3(len(s,x),size[1],size[2]),
                     Y => D3(size[0],len(s,y),size[2]),
@@ -300,6 +300,7 @@ macro_rules! logreduce {
         }
         let mut size_reduce = [size[0] as usize, size[1] as usize, size[2] as usize];
         for (x,dir) in dims {
+            if x == 1 { continue; }
             let mut spacing = 2;
             $h.run_arg(concat!("algo_",$name), d(spacing,dir,size_reduce), &[Param("s",$Ep(spacing as _)),BufArg(&tmp,"src"),BufArg(&tmp,"dst"),Param("size",$Ep_(size.into())),Param("dir",U8(dir as u8)),Param("w",U8(w as u8))])?;
             while spacing<x {

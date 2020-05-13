@@ -517,7 +517,7 @@ macro_rules! random {
 }
 
 macro_rules! random_kernels {
-    ($name:ident,$type:ident) => {
+    (u64 $name:ident,$type:ident) => {
         vec![NewKernel(Kernel {
             name: stringify!($name),
             args: vec![KCBuffer("src",$type)],
@@ -545,6 +545,36 @@ macro_rules! random_kernels {
             needed: vec![],
         })]
     };
+    (u32 $name:ident,$type:ident) => {
+        vec![NewKernel(Kernel {
+            name: stringify!($name),
+            args: vec![KCBuffer("src",$type)],
+            src: random!($name),
+            needed: vec![],
+        }),
+        NewKernel(Kernel {
+            name: concat!(stringify!($name),"_unit"),
+            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
+            src: random!($name,"    const uint l2 = l/2;
+    for(uint i = 0;i<l2;i++)
+        dst[x*l2+i] = (double)(((((ulong)src[x*l+i*2])<<32)+src[x*l+i*2+1])>>11)/(1l << 53);"
+            ),
+            needed: vec![],
+        }),
+        NewKernel(Kernel {
+            name: concat!(stringify!($name),"_normal"),
+            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
+            src: random!($name,"    const uint l2 = l/2;
+    for(uint i = 0;i<l2;i+=2) {
+        double u1 = (double)(((((ulong)src[x*l+i])<<32)+src[x*l+i+1])>>11)/(1l << 53);
+        double u2 = (double)(((((ulong)src[x*l+i+2])<<32)+src[x*l+i+3])>>11)/(1l << 53);
+        dst[x*l2+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
+        dst[x*l2+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
+    }"
+            ),
+            needed: vec![],
+        })]
+    };
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -555,7 +585,7 @@ pub enum RandomType {
 }
 
 macro_rules! gen_random {
-    ($name:ident,$type:ident) => {
+    ($size:ident $name:ident,$type:ident,$n:literal) => {
         Algorithm {
             name: stringify!($name),
             callback: callback_gen!(h,dim,_dirs,bufs,param, {
@@ -563,6 +593,12 @@ macro_rules! gen_random {
                     *p.downcast_ref().expect("The optional paramter for random algorithms must be \"RandomType\"")
                 } else {
                     RandomType::Integer
+                };
+
+                let dim = if let D1(d) = dim {
+                    D1(d/$n)
+                } else {
+                    panic!("Dim of random algorithms must be D1.")
                 };
 
                 match rtype {
@@ -588,7 +624,7 @@ macro_rules! gen_random {
 
                 Ok(None)
             }),
-            needed: random_kernels!($name,$type),
+            needed: random_kernels!($size $name,$type),
         }
 
     };
@@ -665,9 +701,9 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 AlgorithmName("sum"),
             ]
         },
-        gen_random!(philox2x64_10,CU64),
-        gen_random!(philox4x64_10,CU64),
-        gen_random!(philox4x32_10,CU32),
+        gen_random!(u64 philox2x64_10,CU64,2),
+        gen_random!(u64 philox4x64_10,CU64,4),
+        gen_random!(u32 philox4x32_10,CU32,2),//WARNING because floating point results are f64 this 4x32 is considered to take element as if they were u64 (so two u32 count for one)
         ].into_iter().map(|a| (a.name,a)).collect()
 }
 

@@ -294,7 +294,7 @@ macro_rules! logreduce {
         if ap.window.is_some() {
             let size: [usize; 3] = $dim.into();
             let size = [size[0] as u32, size[1] as u32];
-            $h.run_arg("omove", dim.into(), &[BufArg(src,"src"),BufArg(tmp,"dst"),Param("size",size.into()),Param("offsets",offs.into())])?;
+            $h.run_arg("omove", dim.into(), &[BufArg(src,"src"),BufArg(tmp,"dst"),Param("size",size.into()),Param("offsets",offs.into()),Param("vect_dim",(w as u32).into())])?;
         } else {
             $h.copy(src,tmp)?;
         }
@@ -316,12 +316,12 @@ macro_rules! logreduce {
             use Packing::*;
             match dst_size {
                 Packed(dst_size) =>
-                    $h.run_arg("dmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into())])?,
+                    $h.run_arg("dmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into()),Param("vect_dim",(w as u32).into())])?,
                 Unpacked(dst_size) => 
-                    $h.run_arg("rdmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into())])?,
+                    $h.run_arg("rdmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into()),Param("vect_dim",(w as u32).into())])?,
             }
         } else {
-            $h.run_arg("move",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("offset",U32(0))])?
+            $h.run_arg("move",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("offset",U32(0)),Param("vect_dim",(w as u32).into())])?
         }
     };
     (src $src:literal) => {
@@ -680,24 +680,24 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 h.run_algorithm("sum",dim,dirs,&[src,sum,dst],Ref(&ap))?;
                 if num >= 1 {
                     h.run_arg("times",D1(l*w as usize),&[BufArg(&src,"a"),BufArg(&src,"b"),BufArg(&tmp,"dst")])?;
-                    sizedst[3] = w;
+                    sizedst[3] = 1;
                     ap.dst_size = Some(Packing::new(sizedst, packed));
                     h.run_algorithm("sum",dim,dirs,&[tmp,sum,dst],Ref(&ap))?;
                     h.set_arg("times",&[BufArg(&tmp,"a")])?;
                 }
                 for i in 2..num {
                     h.run("times",D1(l*w as usize))?;
-                    sizedst[3] = w*i as u32;
+                    sizedst[3] = i as u32;
                     ap.dst_size = Some(Packing::new(sizedst, packed));
                     h.run_algorithm("sum",dim,dirs,&[tmp,sum,dst],Ref(&(ap)))?;
                 }
-                h.run_arg("cdivides",D1((num*w*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64((l/sumlen as usize) as f64)),BufArg(&dst,"dst")])?;
+                h.run_arg("ctimes",D1((num*w*sumlen) as usize),&[BufArg(&dst,"src"),Param("c",F64(sumlen as f64/l as f64)),BufArg(&dst,"dst")])?;
 
                 Ok(None)
             }),
             needed: vec![
                 KernelName("times"),
-                KernelName("cdivides"),
+                KernelName("ctimes"),
                 AlgorithmName("sum"),
             ]
         },

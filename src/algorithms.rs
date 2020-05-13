@@ -458,6 +458,142 @@ macro_rules! algo_gen {
 
 }
 
+macro_rules! random {
+    (philox4x32_10) => {
+        "    uint key[2] = {x>>32,x};
+    const uint l = 4;
+    const uint M = 0xD2511F53;
+    const uint M2 = 0xCD9E8D57;
+    for(int i = 0;i<10;i++){
+        uint hi0 = mul_hi(M,src[x*l+0]);
+        uint lo0 = M * src[x*l+0];
+        uint hi1 = mul_hi(M,src[x*l+2]);
+        uint lo1 = M2 * src[x*l+2];
+        src[x*l+0] = hi1^key[1]^src[x*l+3];
+        src[x*l+2] = hi0^key[0]^src[x*l+1];
+        src[x*l+1] = lo0;
+        src[x*l+3] = lo1;
+        key[0] += 0x9E3779B9;
+        key[1] += 0xBB67AE85;
+    }
+"
+
+    };
+    (philox2x64_10) => { 
+        "    ulong key = x;
+    const uint l = 2;
+    const ulong M = 0xD2B74407B1CE6E93;
+    for(int i = 0;i<10;i++){
+        ulong hi = mul_hi(M,src[x*l+0]);
+        ulong lo = M * src[x*l+0];
+        src[x*l+0] = hi^key^src[x*l+1];
+        src[x*l+1] = lo;
+        key += 0x9E3779B97F4A7C15;
+    }
+"
+    };
+    (philox4x64_10) => {
+        "    ulong key[2] = {0,x};
+    const uint l = 4;
+    const ulong M = 0xD2B74407B1CE6E93;
+    const ulong M2 = 0xCA5A826395121157;
+    for(int i = 0;i<10;i++){
+        ulong hi0 = mul_hi(M,src[x*l+0]);
+        ulong lo0 = M * src[x*l+0];
+        ulong hi1 = mul_hi(M,src[x*l+2]);
+        ulong lo1 = M2 * src[x*l+2];
+        src[x*l+0] = hi1^key[1]^src[x*l+3];
+        src[x*l+2] = hi0^key[0]^src[x*l+1];
+        src[x*l+1] = lo0;
+        src[x*l+3] = lo1;
+        key[0] += 0x9E3779B97F4A7C15;
+        key[1] += 0xBB67AE8584CAA73B;
+    }
+"
+    };
+    ($name:ident, $more:literal) => {
+        concat!(random!($name),$more)
+    };
+}
+
+macro_rules! random_kernels {
+    ($name:ident,$type:ident) => {
+        vec![NewKernel(Kernel {
+            name: stringify!($name),
+            args: vec![KCBuffer("src",$type)],
+            src: random!($name),
+            needed: vec![],
+        }),
+        NewKernel(Kernel {
+            name: concat!(stringify!($name),"_unit"),
+            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
+            src: random!($name,"    for(uint i = 0;i<l;i++)
+    dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);"
+            ),
+            needed: vec![],
+        }),
+        NewKernel(Kernel {
+            name: concat!(stringify!($name),"_normal"),
+            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
+            src: random!($name,"    for(uint i = 0;i<l;i+=2) {
+    double u1 = (double)(src[x*l+i]>>11)/(1l << 53);
+    double u2 = (double)(src[x*l+i+1]>>11)/(1l << 53);
+    dst[x*l+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
+    dst[x*l+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
+}"
+            ),
+            needed: vec![],
+        })]
+    };
+}
+
+#[derive(Debug,Clone,Copy)]
+pub enum RandomType {
+    Normal,
+    Uniform,
+    Integer,
+}
+
+macro_rules! gen_random {
+    ($name:ident,$type:ident) => {
+        Algorithm {
+            name: stringify!($name),
+            callback: callback_gen!(h,dim,_dirs,bufs,param, {
+                let rtype = if let Ref(p) = param {
+                    *p.downcast_ref().expect("The optional paramter for random algorithms must be \"RandomType\"")
+                } else {
+                    RandomType::Integer
+                };
+
+                match rtype {
+                    RandomType::Normal => {
+                        if bufs.len() != 2 { panic!("Normal random algorithms takes two buffers (src and dst).") }
+                        h.run_arg(concat!(stringify!($name),"_normal"),dim,&[
+                            BufArg(bufs[0],"src"),BufArg(bufs[1],"dst")
+                        ])?
+                    },
+                    RandomType::Uniform => {
+                        if bufs.len() != 2 { panic!("Uniform random algorithms takes two buffers (src and dst).") }
+                        h.run_arg(concat!(stringify!($name),"_unit"),dim,&[
+                            BufArg(bufs[0],"src"),BufArg(bufs[1],"dst")
+                        ])?
+                    },
+                    RandomType::Integer => {
+                        if bufs.len() != 1 { panic!("Integer random algorithms takes two buffers (src and dst).") }
+                        h.run_arg(concat!(stringify!($name)),dim,&[
+                            BufArg(bufs[0],"src")
+                        ])?
+                    },
+                }
+
+                Ok(None)
+            }),
+            needed: random_kernels!($name,$type),
+        }
+
+    };
+}
+
 #[derive(Debug,Clone)]
 pub struct MomentsParam {
     pub num: u32,
@@ -529,6 +665,9 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
                 AlgorithmName("sum"),
             ]
         },
+        gen_random!(philox2x64_10,CU64),
+        gen_random!(philox4x64_10,CU64),
+        gen_random!(philox4x32_10,CU32),
         ].into_iter().map(|a| (a.name,a)).collect()
 }
 

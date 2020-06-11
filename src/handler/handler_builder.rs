@@ -14,7 +14,7 @@ pub struct HandlerBuilder {
     kernels: HashMap<String,(SKernel,String)>,
     algorithms: HashMap<String,(Callback,String)>,
     existing_functions: HashMap<String,String>,
-    functions: HashMap<String,SFunction>,
+    functions: Vec<(String,SFunction)>,
     buffers: Vec<(String,BufferConstructor)>,
     data: HashMap<String, DataFile>,
 }
@@ -28,7 +28,7 @@ impl HandlerBuilder {
             kernels: HashMap::new(),
             algorithms: HashMap::new(),
             existing_functions: HashMap::new(),
-            functions: HashMap::new(),
+            functions: Vec::new(),
             buffers: Vec::new(),
             data: HashMap::new(),
         })
@@ -66,7 +66,7 @@ impl HandlerBuilder {
                 panic!("Cannot add two functions with the same name \"{}\", already added by {}.",as_name,from);
             } else {
                 self.existing_functions.insert(as_name.clone(),"User".into());
-                self.functions.insert(as_name,function);
+                self.functions.push((as_name,function));
             }
         } else if let Some(from) = self.existing_functions.get(&name) {
             if from == "User" {
@@ -76,7 +76,7 @@ impl HandlerBuilder {
             }
         } else {
             self.existing_functions.insert(name.clone(),from.unwrap_or("".into()));//TODO verify if empty string here causes problem
-            self.functions.insert(name.clone(),function);
+            self.functions.push((name.clone(),function));
         }
         for n in needed {
             self = match n {

@@ -1,7 +1,8 @@
 # gpgpu-rs  
 A simple GPU computing library based on OpenCL.  
 
-Can be used more as a test than for real purpose yet.  
+_Development is in progress. Be free to experiment, but keep in mind that gpgpu-rs may not be stable enough for production purpose._
+
 Examples can be executed witch `cargo run --example [name]`. For instance:  
 `cargo run --example random`  
 

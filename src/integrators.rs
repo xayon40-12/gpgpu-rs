@@ -1,6 +1,6 @@
 use crate::descriptors::{KernelConstructor::*,ConstructorTypes::*,KernelArg::*};
 use crate::kernels::{Kernel};
-use crate::algorithms::{SAlgorithm,SNeeded::*,AlgorithmParam};
+use crate::algorithms::{SAlgorithm,SNeeded::{*,self},AlgorithmParam};
 use crate::Handler;
 use crate::dim::{Dim,DimDir};
 use serde::{Serialize,Deserialize};
@@ -24,38 +24,43 @@ pub struct IntegratorParam {
 // Example: d2u/dt2 + du/dt = u   =>   du/dt = z, dz/dt = u.
 // It is why the parameter pdes is a Vec.
 pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
-    let name = name.to_string();
+    let needed = multistages_kernels(name, &pdes, dt, 1, &needed_buffers, params);
+    multistages_algorithm(name, &pdes, needed_buffers, needed, dt, 1)
+}
+
+fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, dt: f64, _nb_stages: usize, needed_buffers: &Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> Vec<SNeeded> {
     let mut args = vec![KCBuffer("dst",CF64)];
     args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dvar,CF64)));
-    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
-    let mut len = 2*vars.len();
     if let Some(ns) = &needed_buffers { 
         args.extend(ns.iter().map(|n| KCBuffer(&n,CF64)));
-        len += ns.len();
     }
     args.extend(params.iter().map(|t| KCParam(&t.0,t.1)));
-    let needed = pdes.iter().map(|d| {
+    pdes.iter().map(|d| {
         let mut id = "x+x_size*(y+y_size*z)".to_string();
         let len = d.expr.len();
         if len > 1 {
             id = format!("{}*({})", len, id);
         }
-        let expr = if len == 1 {
-            format!("    dst[_i] = {}[_i] + {}*({});\n", &d.dvar, dt, &d.expr[0])
-        } else {
-            let mut expr = String::new();
-            for i in 0..len {
-                expr += &format!("    dst[{i}+_i] = {}[{i}+_i] + {}*({});\n", &d.dvar, dt, &d.expr[i], i = i);
-            }
-            expr
-        };
+        let mut expr = String::new();
+        for i in 0..len {
+            expr += &format!("    dst[{i}+_i] = {}[{i}+_i] + {}*({});\n", &d.dvar, dt, &d.expr[i], i = i);
+        }
         NewKernel((&Kernel {
             name: &format!("{}_{}", &name, &d.dvar),
             args: args.clone(),
             src: &format!("    uint _i = {};\n{}", id, expr),
             needed: vec![],
         }).into())
-    }).collect::<Vec<_>>();
+    }).collect::<Vec<_>>()
+}
+
+fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Vec<String>>, needed: Vec<SNeeded>, dt: f64, _nb_stages: usize) -> SAlgorithm {
+    let name = name.to_string();
+    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
+    let mut len = 2*vars.len();
+    if let Some(ns) = &needed_buffers { 
+        len += ns.len();
+    }
     SAlgorithm {
         name: name.clone(),
         callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], mut other: AlgorithmParam| {

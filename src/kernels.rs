@@ -83,6 +83,30 @@ pub fn kernels() -> HashMap<&'static str,Kernel<'static>> {
             needed: vec![],
         },
         Kernel {
+            name: "vcplus",
+            args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCBuffer("c",CF64),KCParam("size",CU32_4),KCParam("vect_dim",CU32)],
+            src: "    for(uint _w = 0; _w<vect_dim; _w++) dst[vect_dim*(x+x_size*(y+y_size*z))+_w] = src[vect_dim*(x+x_size*(y+y_size*z))+_w]+c[_w*size.w/vect_dim + size.w*(x*size.x/x_size+size.x*(y*size.y/y_size+size.y*(z*size.z/z_size)))];",
+            needed: vec![],
+        },
+        Kernel {
+            name: "vcminus",
+            args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCBuffer("c",CF64),KCParam("size",CU32_4),KCParam("vect_dim",CU32)],
+            src: "    for(uint _w = 0; _w<vect_dim; _w++) dst[vect_dim*(x+x_size*(y+y_size*z))+_w] = src[vect_dim*(x+x_size*(y+y_size*z))+_w]-c[_w*size.w/vect_dim + size.w*(x*size.x/x_size+size.x*(y*size.y/y_size+size.y*(z*size.z/z_size)))];",
+            needed: vec![],
+        },
+        Kernel {
+            name: "vctimes",
+            args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCBuffer("c",CF64),KCParam("size",CU32_4),KCParam("vect_dim",CU32)],
+            src: "    for(uint _w = 0; _w<vect_dim; _w++) dst[vect_dim*(x+x_size*(y+y_size*z))+_w] = src[vect_dim*(x+x_size*(y+y_size*z))+_w]*c[_w*size.w/vect_dim + size.w*(x*size.x/x_size+size.x*(y*size.y/y_size+size.y*(z*size.z/z_size)))];",
+            needed: vec![],
+        },
+        Kernel {
+            name: "vcdivides",
+            args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCBuffer("c",CF64),KCParam("size",CU32_4),KCParam("vect_dim",CU32)],
+            src: "    for(uint _w = 0; _w<vect_dim; _w++) dst[vect_dim*(x+x_size*(y+y_size*z))+_w] = src[vect_dim*(x+x_size*(y+y_size*z))+_w]/c[_w*size.w/vect_dim + size.w*(x*size.x/x_size+size.x*(y*size.y/y_size+size.y*(z*size.z/z_size)))];",
+            needed: vec![],
+        },
+        Kernel {
             name: "move",
             args: vec![KCBuffer("src",CF64),KCBuffer("dst",CF64),KCParam("size",CU32_4),KCParam("offset",CU32),KCParam("vect_dim",CU32)],
             src: "    for(uint _w = 0; _w<vect_dim; _w++) dst[vect_dim*(x+x_size*(y+y_size*z) + offset)+_w] = src[vect_dim*(x+size.x*(y+size.y*z))+_w];",

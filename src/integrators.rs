@@ -24,10 +24,10 @@ pub struct IntegratorParam {
 // Example: d2u/dt2 + du/dt = u   =>   du/dt = z, dz/dt = u.
 // It is why the parameter pdes is a Vec.
 pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
-    multistages_algorithm(name, &pdes, needed_buffers, params, dt, 1)
+    multistages_algorithm(name, &pdes, needed_buffers, params, dt, vec![vec![1.0]])
 }
 
-fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> Vec<SNeeded> {
+fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, stages: Vec<Vec<f64>>) -> Vec<SNeeded> {
     let mut args = vec![KCBuffer("dst",CF64)];
     args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dvar,CF64)));
     if let Some(ns) = &needed_buffers { 
@@ -51,6 +51,25 @@ fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec
             needed: vec![],
         }).into())
     }).collect::<Vec<_>>();
+    for (i,v) in stages.iter().enumerate() {
+        let c = v.iter().fold(0.0, |a,i| a+i);
+        let mut args = vec![KCBuffer("dst",CF64)];
+        let argnames = (0..v.len()).map(|i| format!("src{}", i)).collect::<Vec<_>>();
+        let mut src = String::new();
+        for (i,v) in v.iter().enumerate() {
+            args.push(KCBuffer(&argnames[i],CF64));
+            src = format!("{}*{}[i] + ", v, &argnames[i]);
+        }
+        src = format!("    uint i = x+x_size*(y+y_size*z);\n    dst[i] = {};", &src[..src.len()-2]);
+
+        needed.push(NewKernel((&Kernel {
+            name: &format!("stage{}", i),
+            args,
+            src: &src,
+            needed: vec![],
+        }).into()));
+    }
+
     needed.push(NewKernel((&Kernel {
         name: "muladd",
         args: vec![KCBuffer("dst",CF64),KCBuffer("a",CF64),KCBuffer("b",CF64),KCParam("c",CF64)],
@@ -60,17 +79,20 @@ fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec
     needed
 }
 
-fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, dt: f64, nb_stages: usize) -> SAlgorithm {
+fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, dt: f64, stages: Vec<Vec<f64>>) -> SAlgorithm {
     let name = name.to_string();
-    let needed = multistages_kernels(&name, &pdes, &needed_buffers, params);
     let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
     let mut len = 2*vars.len();
     if let Some(ns) = &needed_buffers { 
         len += ns.len();
     }
-    if nb_stages > 1 {
-        len += nb_stages;
+    for (i,v) in stages.iter().enumerate() {
+        if v.len() != i+1 { panic!("In multisatges algorithm the coefficients must be given as a vector for each stages in the order, the first stage does not need a coefficent nor an empty, then each stage needs one more coefficient (3 coefficient for the fourth stage for instance) and the las vector correspond to how to sum each of the computed stages at the end thus it needs as many coefficient as there are stages.") }
     }
+
+    len += stages.len()-1;
+    let nb_stages = stages.len();
+    let needed = multistages_kernels(&name, &pdes, &needed_buffers, params, stages);
     SAlgorithm {
         name: name.clone(),
         callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], mut other: AlgorithmParam| {

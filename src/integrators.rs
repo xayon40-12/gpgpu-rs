@@ -16,7 +16,7 @@ pub struct SPDE {
 
 pub struct IntegratorParam {
     pub t: f64,
-    pub swap: usize,
+    pub increment_name: String,
     pub args: Vec<(String,Types)>,
 }
 
@@ -26,8 +26,14 @@ pub struct IntegratorParam {
 pub fn create_euler_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
     multistages_algorithm(name, &pdes, needed_buffers, params, dt, vec![vec![1.0]])
 }
+pub fn create_projector_corrector_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
+    multistages_algorithm(name, &pdes, needed_buffers, params, dt, vec![vec![1.0],vec![0.5,0.5]])
+}
+pub fn create_rk4_pde<'a>(name: &'a str, dt: f64, pdes: Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>) -> SAlgorithm {
+    multistages_algorithm(name, &pdes, needed_buffers, params, dt, vec![vec![0.5],vec![0.0,0.5],vec![0.0,0.0,1.0],vec![1./6.,1./3.,1./3.,1./6.]])
+}
 
-fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, stages: Vec<Vec<f64>>) -> Vec<SNeeded> {
+fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, stages: &Vec<Vec<f64>>) -> Vec<SNeeded> {
     let mut args = vec![KCBuffer("dst",CF64)];
     args.extend(pdes.iter().map(|pde| KCBuffer(&pde.dvar,CF64)));
     if let Some(ns) = &needed_buffers { 
@@ -52,15 +58,14 @@ fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec
         }).into())
     }).collect::<Vec<_>>();
     for (i,v) in stages.iter().enumerate() {
-        let c = v.iter().fold(0.0, |a,i| a+i);
-        let mut args = vec![KCBuffer("dst",CF64)];
+        let mut args = vec![KCBuffer("dst",CF64),KCBuffer("src",CF64),KCParam("h",CF64)];
         let argnames = (0..v.len()).map(|i| format!("src{}", i)).collect::<Vec<_>>();
         let mut src = String::new();
         for (i,v) in v.iter().enumerate() {
             args.push(KCBuffer(&argnames[i],CF64));
-            src = format!("{}*{}[i] + ", v, &argnames[i]);
+            src = format!("{} + {}*{}[i]", src, v, &argnames[i]);
         }
-        src = format!("    uint i = x+x_size*(y+y_size*z);\n    dst[i] = {};", &src[..src.len()-2]);
+        src = format!("    uint i = x+x_size*(y+y_size*z);\n    dst[i] = src[i] + h*({});", &src[3..]);
 
         needed.push(NewKernel((&Kernel {
             name: &format!("stage{}", i),
@@ -69,20 +74,14 @@ fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec
             needed: vec![],
         }).into()));
     }
-
-    needed.push(NewKernel((&Kernel {
-        name: "muladd",
-        args: vec![KCBuffer("dst",CF64),KCBuffer("a",CF64),KCBuffer("b",CF64),KCParam("c",CF64)],
-        src: "    uint i = x+x_size*(y+y_size*z);\n    dst[i] = a[i] + c*b[i];",
-        needed: vec![],
-    }).into()));
     needed
 }
 
 fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, dt: f64, stages: Vec<Vec<f64>>) -> SAlgorithm {
     let name = name.to_string();
     let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
-    let mut len = 2*vars.len();
+    let mut len = (if stages.len() > 1 { 2 } else { 1 }+stages.len())*vars.len();
+    let nb_pde_buffers = len;
     if let Some(ns) = &needed_buffers { 
         len += ns.len();
     }
@@ -90,9 +89,10 @@ fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Ve
         if v.len() != i+1 { panic!("In multisatges algorithm the coefficients must be given as a vector for each stages in the order, the first stage does not need a coefficent nor an empty, then each stage needs one more coefficient (3 coefficient for the fourth stage for instance) and the las vector correspond to how to sum each of the computed stages at the end thus it needs as many coefficient as there are stages.") }
     }
 
-    len += stages.len()-1;
+    let nb_per_stages = if stages.len() > 1 { 2 } else { 1 } + stages.len();
+    let tmpid = nb_per_stages-1;
     let nb_stages = stages.len();
-    let needed = multistages_kernels(&name, &pdes, &needed_buffers, params, stages);
+    let needed = multistages_kernels(&name, &pdes, &needed_buffers, params, &stages);
     SAlgorithm {
         name: name.clone(),
         callback: std::rc::Rc::new(move |h: &mut Handler, dim: Dim, _dimdir: &[DimDir], bufs: &[&str], mut other: AlgorithmParam| {
@@ -103,32 +103,35 @@ fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Ve
             let _dim: [usize; 3] = dim.into();
             let d = _dim.iter().fold(1, |a,i| a*i);
             if bufs.len() != len { panic!("Multistages algorithm \"{}\" must be given {} buffer arguments.", &name, &len); }
-            let IntegratorParam{ref mut t,ref mut swap,args: iargs} = other
+            let IntegratorParam{ref mut t,ref increment_name,args: iargs} = other
                 .downcast_mut("There must be an Mut(&mut IntegratorParam) given as optional argument in Multistages integrator algorithm.");
-            let mut args = vec![BufArg(&bufs[1-*swap],"dst")];
-            for i in 0..vars.len() {
-                args.push(BufArg(&bufs[2*i+*swap],&vars[i].1));
-            }
+            let mut args = vec![BufArg("",""); vars.len()+1];
             if let Some(ns) = &needed_buffers {
-                let mut i = 2*vars.len();
+                let mut i = nb_pde_buffers;
                 for n in ns {
                     args.push(BufArg(&bufs[i],&n));
                     i+=1;
                 }
             }
             args.extend(iargs.iter().map(|i| Param(&i.0,i.1)));
-            for i in (0..vars.len()).rev() {
-                args[0] = BufArg(&bufs[2*i+1-*swap],"dst");
-                h.run_arg(&vars[i].0,dim,&args)?;
-                if nb_stages == 1 {
-                    h.run_arg("muladd",D1(d),&[BufArg(&bufs[2*i+*swap],"a"),BufArg(&bufs[2*i+1-*swap],"b"),BufArg(&bufs[2*i+1-*swap],"dst"),Param("c",dt.into())])?;
-                } else {
-                    panic!("Multistages not handled yet.");
+            args.push(Param(increment_name, (*t).into()));
+            let time_id = args.len()-1;
+            let argnames = (0..nb_per_stages).map(|i| format!("src{}", i)).collect::<Vec<_>>();
+            for s in 0..nb_stages {
+                for i in (0..vars.len()).rev() {
+                    args[0] = BufArg(&bufs[nb_per_stages*i+(s+1)],"dst");
+                    for i in 0..vars.len() {
+                        args[1+i] = BufArg(&bufs[nb_per_stages*i+ if s==0 { 0 } else { tmpid }],&vars[i].1);
+                    }
+                    h.run_arg(&vars[i].0,dim,&args)?;
+                    args[time_id] = Param(increment_name, (*t+stages[s].iter().fold(0.0, |a,i| a+i)).into()); // increment time for next stage
+                    let mut stage_args = vec![BufArg(&bufs[nb_per_stages*i+ if s==nb_stages-1 { 0 } else { tmpid }],"dst"),BufArg(&bufs[nb_per_stages*i],"src"),Param("h",dt.into())];
+                    stage_args.extend((0..s+1).map(|j| BufArg(&bufs[nb_per_stages*i+(j+1)],&argnames[j])));
+                    h.run_arg(&format!("stage{}",s),D1(d),&stage_args)?;
                 }
             }
 
             *t += dt;
-            *swap = 1-*swap;
             Ok(None)
         }),
         needed

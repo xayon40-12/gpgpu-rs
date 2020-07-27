@@ -95,6 +95,11 @@ fn sum() -> gpgpu::Result<()> {
 }
 
 #[test]
+fn window_sum() -> gpgpu::Result<()> {
+    //TODO
+}
+
+#[test]
 fn min() -> gpgpu::Result<()> {
     let x = 8;
     let y = 3;

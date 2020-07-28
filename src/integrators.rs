@@ -79,7 +79,7 @@ fn multistages_kernels(name: &str, pdes: &Vec<SPDE>, needed_buffers: &Option<Vec
 
 fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Vec<String>>, params: Vec<(String,ConstructorTypes)>, dt: f64, stages: Vec<Vec<f64>>) -> SAlgorithm {
     let name = name.to_string();
-    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone())).collect::<Vec<_>>();
+    let vars = pdes.iter().map(|d| (format!("{}_{}", &name, &d.dvar),d.dvar.clone(),d.expr.len())).collect::<Vec<_>>();
     let mut len = (if stages.len() > 1 { 2 } else { 1 }+stages.len())*vars.len();
     let nb_pde_buffers = len;
     if let Some(ns) = &needed_buffers { 
@@ -127,7 +127,7 @@ fn multistages_algorithm(name: &str, pdes: &Vec<SPDE>, needed_buffers: Option<Ve
                     args[time_id] = Param(increment_name, (*t+stages[s].iter().fold(0.0, |a,i| a+i)).into()); // increment time for next stage
                     let mut stage_args = vec![BufArg(&bufs[nb_per_stages*i+ if s==nb_stages-1 { 0 } else { tmpid }],"dst"),BufArg(&bufs[nb_per_stages*i],"src"),Param("h",dt.into())];
                     stage_args.extend((0..s+1).map(|j| BufArg(&bufs[nb_per_stages*i+(j+1)],&argnames[j])));
-                    h.run_arg(&format!("stage{}",s),D1(d),&stage_args)?;
+                    h.run_arg(&format!("stage{}",s),D1(d*vars[i].2),&stage_args)?;// vars[i].2 correspond to the vectorial dim of the current pde
                 }
             }
 

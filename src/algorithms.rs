@@ -460,14 +460,14 @@ macro_rules! algo_gen {
 
 macro_rules! random {
     (philox4x32_10) => {
-        "    uint key[2] = {x>>32,x};
+        "    uint key[2] = {0,x};
     const uint l = 4;
     const uint M = 0xD2511F53;
     const uint M2 = 0xCD9E8D57;
     for(int i = 0;i<10;i++){
         uint hi0 = mul_hi(M,src[x*l+0]);
         uint lo0 = M * src[x*l+0];
-        uint hi1 = mul_hi(M,src[x*l+2]);
+        uint hi1 = mul_hi(M2,src[x*l+2]);
         uint lo1 = M2 * src[x*l+2];
         src[x*l+0] = hi1^key[0]^src[x*l+1];
         src[x*l+1] = lo1;
@@ -500,7 +500,7 @@ macro_rules! random {
     for(int i = 0;i<10;i++){
         ulong hi0 = mul_hi(M,src[x*l+0]);
         ulong lo0 = M * src[x*l+0];
-        ulong hi1 = mul_hi(M,src[x*l+2]);
+        ulong hi1 = mul_hi(M2,src[x*l+2]);
         ulong lo1 = M2 * src[x*l+2];
         src[x*l+0] = hi1^key[0]^src[x*l+1];
         src[x*l+1] = lo1;

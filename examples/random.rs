@@ -30,7 +30,7 @@ fn main() -> gpgpu::Result<()> {
     let start = SystemTime::now();
     let mut moms = vec![0.0;nmom];
     for _ in 0..n {
-        gpu.run_algorithm("noise",Dim::D1(len/2),&[],&["src","num"],Ref(&rtype))?;
+        gpu.run_algorithm("noise",Dim::D1(len),&[],&["src","num"],Ref(&rtype))?;
         gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
@@ -42,7 +42,7 @@ fn main() -> gpgpu::Result<()> {
     let start = SystemTime::now();
     moms = vec![0.0;nmom];
     for _ in 0..n {
-        gpu.run_algorithm("noise4",Dim::D1(len/2),&[],&["src","num"],Ref(&rtype))?;
+        gpu.run_algorithm("noise4",Dim::D1(len),&[],&["src","num"],Ref(&rtype))?;
         gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }
@@ -54,7 +54,7 @@ fn main() -> gpgpu::Result<()> {
     let start = SystemTime::now();
     moms = vec![0.0;nmom];
     for _ in 0..n {
-        gpu.run_algorithm("noise32",Dim::D1(len/2),&[],&["src","num"],Ref(&rtype))?;
+        gpu.run_algorithm("noise32",Dim::D1(len),&[],&["src","num"],Ref(&rtype))?;
         gpu.run_algorithm("moments",Dim::D1(len),&[X],&["num","tmp","sum","dst"],Ref(&prm))?;
         moms = gpu.get("dst")?.VF64().iter().enumerate().map(|(i,v)| moms[i]+v).collect();
     }

@@ -9,7 +9,8 @@ use gpgpu::descriptors::{
 };
 use gpgpu::kernels::Kernel;
 use gpgpu::{Dim,DimDir::*};
-use gpgpu::algorithms::{AlgorithmParam::*,MomentsParam};
+use gpgpu::algorithms::{AlgorithmParam::*,MomentsParam,RandomType};
+use gpgpu::philox::*;
 
 #[test]
 fn simple_main() -> gpgpu::Result<()> {
@@ -97,6 +98,7 @@ fn sum() -> gpgpu::Result<()> {
 #[test]
 fn window_sum() -> gpgpu::Result<()> {
     //TODO
+    Ok(())
 }
 
 #[test]
@@ -404,6 +406,48 @@ fn function_test() -> gpgpu::Result<()> {
 
     gpu.run_arg("_main",Dim::D1(num/2),&[Buffer("u")])?;
     assert_eq!(gpu.get("u")?.VF64(), (0..num).map(|j| (j + (j+1)%2 -j%2) as f64 ).collect::<Vec<_>>());
+
+    Ok(())
+}
+
+#[test]
+fn random_philoxrs_gpualgorithm() -> gpgpu::Result<()> {
+    let seed = 0u64;
+    let len = 4;
+    let mut gpu = Handler::builder()?
+        .add_buffer("src", Len(seed.into(),len))
+        .add_buffer("src1", Len(seed.into(),len))
+        .add_buffer("src2", Len(seed.into(),len))
+        .add_buffer("num", Len(0.0.into(),len))
+        .add_buffer("num1", Len(0.0.into(),len))
+        .add_buffer("num2", Len(0.0.into(),len))
+        .load_algorithm("philox2x64_10")
+        .load_algorithm("philox4x64_10")
+        .load_algorithm("philox4x32_10")
+        .build()?;
+
+    let rtype = RandomType::Uniform;
+
+
+    gpu.run_algorithm("philox2x64_10",Dim::D1(len),&[],&["src","num"],Ref(&rtype))?;
+    let gres = gpu.get("num")?.VF64();
+    let counter = [seed;2];
+    let res0 = philox2x64(counter, 0, 10);
+    let res1 = philox2x64(counter, 1, 10);
+    assert_eq!(gres,[res0[0],res0[1],res1[0],res1[1]],"philox2x64_10");
+    
+    gpu.run_algorithm("philox4x64_10",Dim::D1(len),&[],&["src1","num1"],Ref(&rtype))?;
+    let gres = gpu.get("num1")?.VF64();
+    let counter = [seed;4];
+    let res = philox4x64(counter, [0,0], 10);
+    assert_eq!(gres,res,"philox4x64_10");
+
+    gpu.run_algorithm("philox4x32_10",Dim::D1(len),&[],&["src2","num2"],Ref(&rtype))?;
+    let gres = gpu.get("num2")?.VF64();
+    let counter = unsafe { std::mem::transmute([seed;2]) };
+    let res0 = philox4x32(counter, [0,0], 10);
+    let res1 = philox4x32(counter, [0,1], 10);
+    assert_eq!(gres,[res0[0],res0[1],res1[0],res1[1]],"philox4x32_10");
 
     Ok(())
 }

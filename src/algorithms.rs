@@ -469,10 +469,10 @@ macro_rules! random {
         uint lo0 = M * src[x*l+0];
         uint hi1 = mul_hi(M,src[x*l+2]);
         uint lo1 = M2 * src[x*l+2];
-        src[x*l+0] = hi1^key[1]^src[x*l+3];
-        src[x*l+2] = hi0^key[0]^src[x*l+1];
-        src[x*l+1] = lo0;
-        src[x*l+3] = lo1;
+        src[x*l+0] = hi1^key[0]^src[x*l+1];
+        src[x*l+1] = lo1;
+        src[x*l+2] = hi0^key[1]^src[x*l+3];
+        src[x*l+3] = lo0;
         key[0] += 0x9E3779B9;
         key[1] += 0xBB67AE85;
     }
@@ -502,10 +502,10 @@ macro_rules! random {
         ulong lo0 = M * src[x*l+0];
         ulong hi1 = mul_hi(M,src[x*l+2]);
         ulong lo1 = M2 * src[x*l+2];
-        src[x*l+0] = hi1^key[1]^src[x*l+3];
-        src[x*l+2] = hi0^key[0]^src[x*l+1];
-        src[x*l+1] = lo0;
-        src[x*l+3] = lo1;
+        src[x*l+0] = hi1^key[0]^src[x*l+1];
+        src[x*l+1] = lo1;
+        src[x*l+2] = hi0^key[1]^src[x*l+3];
+        src[x*l+3] = lo0;
         key[0] += 0x9E3779B97F4A7C15;
         key[1] += 0xBB67AE8584CAA73B;
     }

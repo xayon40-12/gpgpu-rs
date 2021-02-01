@@ -71,7 +71,7 @@ use std::io::Write;
 use std::time::SystemTime;
 fn diffusion_int() -> gpgpu::Result<()> {
     let l = 1<<18;
-    let t = 7.0e-2;
+    let t = 7.0e-4; // t should be a lot lager in order to have good result be it would take a lot longer
     let dt = 3e-7;
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
@@ -134,6 +134,7 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
     let f = Forward(vec![X]);
     let b = Backward(vec![X]);
     let expr = (D*diff(diff(u,f),b)).to_ocl();
+    println!("{:?}", expr);
 
     let l = 1<<21;
     let t = 10.0;
@@ -159,7 +160,7 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
     let m = (t/dt) as usize;
     let start = SystemTime::now();
     for i in 0..m {
-        if i%(m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
+        if i%(1+m/100) == 0 { print!(" {}%\r",i*100/m); std::io::stdout().lock().flush().unwrap(); }
         gpu.run_algorithm("diffusion",D1(l),&[],&bufs,Mut(&mut ip))?;
     }
     println!("diffusion_int_pde_gen");

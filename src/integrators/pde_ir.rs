@@ -330,35 +330,60 @@ fn similar(a: &SPDETokens, b:&SPDETokens) -> bool {
     a.is_scalar() == b.is_scalar()
 }
 
+// 
+macro_rules! compact_or{
+    ($a:expr, $b:expr, $e:ident|$op:tt, $or:expr) => {{
+        use SPDETokens::Const;
+        let a = $a; let b = $b;
+        if let Const(a) = a {
+            if let Const(b) = b {
+                Const(a $op b)
+            } else {
+                $e(Box::new(Const(a)),$or(b))
+            }
+        } else {
+            if let Const(b) = b {
+                $e(Box::new(Const(b)),$or(a))
+            } else {
+                $e(Box::new(a),$or(b))
+            }
+        }
+    }};
+}
+
 macro_rules! opconcat{
-    ($e:ident $a:ident $b:ident) => {{
+    ($e:ident|$op:tt $a:ident $b:ident) => {{
         let a = $a.convert();
         let b = $b.convert();
         if let $e(a,mut v) = a {
             if let $e(b,mut w) = b {
-                v.push(*b);
                 v.append(&mut w);
+                compact_or!(*a, *b, $e|$op, |b| {v.push(b); v})
             } else {
-                v.push(b);
+                compact_or!(*a, b, $e|$op, |b| {v.push(b); v})
             }
-            $e(a,v)
         } else {
-            $e(Box::new(a),vec![b])
+            compact_or!(a, b, $e|$op, |b|{vec![b]})
         }
     }};
-    ($e:ident $inv:ident $a:ident $b:ident) => {{
+    ($e:ident|$op:tt $inv:ident $a:ident $b:ident) => {{
         let a = $a.convert();
         let b = $b.convert();
         if let $e(a,mut v) = a {
             if let $e(b,w) = b {
-                v.push(*b);
-                $e(Box::new($inv(a,w)),v)
+                let ab = (*a,*b);
+                if let (Const(a),Const(b)) = ab {
+                    $e(Box::new($inv(Box::new(Const(a $op b)),w)),v)
+                } else { //TODO further optimize (if a is an Add,Sub,... that start by a Const and same for b)
+                    let (a,b) = ab;
+                    v.push(b);
+                    $e(Box::new($inv(Box::new(a),w)),v)
+                }
             } else {
-                v.push(b);
-                $e(a,v)
+                compact_or!(*a, b, $e|$op, |b| { v.push(b); v})
             }
         } else {
-            $e(Box::new(a),vec![b])
+            compact_or!(a, b, $e|$op, |b|{vec![b]})
         }
     }};
 }
@@ -382,7 +407,7 @@ impl Add for SPDETokens {
             panic!("Vect must be added to another Vect.")
         } else {
             if !similar(&a,&b) { panic!("Cannot add Vect to scalar."); }
-            opconcat!(Add a b)
+            opconcat!(Add|+ a b)
         }
     }
 }
@@ -408,7 +433,7 @@ impl Sub for SPDETokens {
             panic!("Vect must be added to another Vect.")
         } else {
             if !similar(&a,&b) { panic!("Cannot substract Vect to scalar."); }
-            opconcat!(Sub Add a b)
+            opconcat!(Sub|- Add a b)
         }
     }
 }
@@ -446,7 +471,7 @@ impl Mul for SPDETokens {
                         },
                         _ => panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
                     },
-                    _ => opconcat!(Mul a b),
+                    _ => opconcat!(Mul|* a b),
                 },
             },
         }
@@ -481,7 +506,7 @@ impl Div for SPDETokens {
     fn div(self, other: Self) -> Self {
         use SPDETokens::*;
         if !other.is_scalar() { panic!("Connat devide by a Vect."); }
-        opconcat!(Div Mul self other)
+        opconcat!(Div|/ Mul self other)
     }
 }
 impl_cs!{Div,div}

@@ -469,7 +469,7 @@ impl Mul for SPDETokens {
                             let first = tmp.next().unwrap();
                             tmp.fold(first,|a,i| Add(Box::new(a),vec![i]))
                         },
-                        _ => panic!("Vect must be multiplied with Vect or Indx(Vector(..)). given {:?}.", b)
+                        _ => { let a = Vect(a); opconcat!(Mul|* a b) }
                     },
                     _ => opconcat!(Mul|* a b),
                 },
@@ -495,7 +495,13 @@ impl BitXor for SPDETokens {
                 }
             } else { panic!("Vect must be exponanciated to a natural number exponant."); }
         } else {
-            Pow(Box::new(self),Box::new(other))
+            let ab = (self,other);
+            if let (Const(a),Const(b)) = ab {
+                a.powf(b).into()
+            } else {
+                let (a,b) = ab;
+                Pow(Box::new(a),Box::new(b))
+            }
         }
     }
 }

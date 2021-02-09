@@ -7,6 +7,7 @@ use serde::{Serialize,Deserialize};
 use crate::descriptors::{Types,ConstructorTypes};
 
 pub mod pde_ir;
+pub mod pde_parser;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SPDE {

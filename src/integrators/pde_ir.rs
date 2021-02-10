@@ -81,7 +81,7 @@ impl SPDETokens {
             Symb(..) => true,
             Const(..) => true,
             Vect(..) => false,
-            Indx(i) => i.dim == 1,
+            Indx(..) => true,
         }
     }
     fn _to_ocl(self) -> String {
@@ -191,6 +191,12 @@ pub mod ir_helper {
     pub use super::*;
     pub use DiffDir::*;
     pub use SPDETokens::*;
+
+    pub struct PDE {
+        pub var_name: String,
+        pub boundary: String,
+        pub dim: usize,
+    }
 
     pub fn func<'a,T: Into<SPDETokens>>(n: &'a str, a: Vec<T>) -> SPDETokens {
         Func(n.to_string(),a.into_iter().map(|i| i.into().convert()).collect::<Vec<_>>())

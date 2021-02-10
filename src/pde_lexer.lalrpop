@@ -1,7 +1,13 @@
 use std::str::FromStr;
 use crate::integrators::pde_ir::ir_helper::*;
 
-grammar;
+grammar(vars: &Vec<PDE>); // (var name, bourndary function name, dim)
+
+match {
+    r"cos|sin|tan|acos|asin|atan" => F1,
+    r"atan2" => F2,
+    
+} else { _ }
 
 pub Expr: SPDETokens = {
     <l:Expr> "+" <r:Factor> => l + r,
@@ -21,14 +27,20 @@ Pow: SPDETokens = {
 };
 
 Func: SPDETokens = {
-    <name:r"cos|sin|tan|acos|asin|atan"> <x:Term> => func(name, vec![x]),
-    <name:r"atan2"> <x:Term> <y:Term> => func(name, vec![x,y]),
+    <name:F1> <x:Term> => func(name, vec![x]),
+    <name:F2> <x:Term> <y:Term> => func(name, vec![x,y]),
     Term,
 };
 
 Term: SPDETokens = {
     Num,
+    Symb,
     "(" <Expr> ")",
+};
+
+Symb: SPDETokens = {
+    r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
+        |acc,PDE{var_name: v, boundary: b, dim: d}| if <> == v { Indexable::new_scalar(*d,&v,&b) } else { acc }),
 };
 
 Num: SPDETokens = {

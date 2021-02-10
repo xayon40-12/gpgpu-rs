@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::integrators::pde_ir::*;
+use crate::integrators::pde_ir::ir_helper::*;
 
 grammar;
 
@@ -16,7 +16,13 @@ Factor: SPDETokens = {
 };
 
 Pow: SPDETokens = {
-    <l:Pow> r"\^|\*\*" <r:Term> => l ^ r,
+    <l:Func> r"\^|\*\*" <r:Pow> => l ^ r,
+    Func,
+};
+
+Func: SPDETokens = {
+    <name:r"cos|sin|tan|acos|asin|atan"> <x:Term> => func(name, vec![x]),
+    <name:r"atan2"> <x:Term> <y:Term> => func(name, vec![x,y]),
     Term,
 };
 

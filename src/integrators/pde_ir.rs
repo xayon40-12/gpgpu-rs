@@ -61,7 +61,7 @@ pub enum SPDETokens {
     Mul(Box<SPDETokens>,Vec<SPDETokens>),
     Div(Box<SPDETokens>,Vec<SPDETokens>),
     Pow(Box<SPDETokens>,Box<SPDETokens>),
-    Func(String,Box<SPDETokens>),
+    Func(String,Vec<SPDETokens>),
     Symb(String), // considered to be a scalar
     Const(f64),
     Vect(Vec<SPDETokens>),
@@ -98,7 +98,7 @@ impl SPDETokens {
             Mul(a,b) => foldop!(a * b),
             Div(a,b) => foldop!(a / b),
             Pow(a,b) => format!("pow({},{})", a._to_ocl(), b._to_ocl()),
-            Func(n,a) => format!("{}({})",n,a._to_ocl()),
+            Func(n,a) => format!("{}({})",n,a.into_iter().map(|i| i._to_ocl()).collect::<Vec<_>>().join(",")),
             Symb(a) => a,
             Const(a) => format!("{:e}",a),
             Indx(a) => a.to_string(),
@@ -125,7 +125,7 @@ impl SPDETokens {
             Mul(a,b) => conv!(a * b),
             Div(a,b) => conv!(a / b),
             Pow(a,b) => a ^ b,
-            Func(n,a) => func(&n,*a),
+            Func(n,a) => func(&n,a),
             Vect(_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by another vector."),
             _ => self,
         }
@@ -143,7 +143,7 @@ impl SPDETokens {
             Sub(a,b) => applyidx!(a - b),
             Mul(a,b) => applyidx!(a * b),
             Div(a,b) => applyidx!(a / b),
-            Func(n,a) => Func(n,Box::new(a.apply_idx(idx))),
+            Func(n,a) => Func(n,a.into_iter().map(|i| i.apply_idx(idx)).collect::<Vec<_>>()),
             Indx(a) => Indx(a.apply_idx(idx)),
             _ => self
         }.into()
@@ -192,8 +192,8 @@ pub mod ir_helper {
     pub use DiffDir::*;
     pub use SPDETokens::*;
 
-    pub fn func<'a,T: Into<SPDETokens>>(n: &'a str, a: T) -> SPDETokens {
-        Func(n.to_string(),Box::new(a.into().convert()))
+    pub fn func<'a,T: Into<SPDETokens>>(n: &'a str, a: Vec<T>) -> SPDETokens {
+        Func(n.to_string(),a.into_iter().map(|i| i.into().convert()).collect::<Vec<_>>())
     }
 
     pub fn symb<'a>(n: &'a str) -> SPDETokens {

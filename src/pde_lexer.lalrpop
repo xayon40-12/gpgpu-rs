@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::integrators::pde_ir::ir_helper::*;
+use crate::integrators::pde_ir::{DiffDir::*,DimDir,ir_helper::*};
 
 grammar(vars: &Vec<PDE>); // (var name, bourndary function name, dim)
 
@@ -22,13 +22,27 @@ Factor: SPDETokens = {
 };
 
 Pow: SPDETokens = {
-    <l:Func> r"\^|\*\*" <r:Pow> => l ^ r,
+    <l:Func> "^" <r:Pow> => l ^ r,
     Func,
 };
 
 Func: SPDETokens = {
     <name:F1> <x:Term> => func(name, vec![x]),
-    <name:F2> <x:Term> <y:Term> => func(name, vec![x,y]),
+    <name:F2> "(" <x:Term> "," <y:Term> ")" => func(name, vec![x,y]),
+    <d:r"#[<>]x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
+        let start = if &d[1..2] == ">" { 0 } else { 1 };
+        let (e,n) = match d.find("^") {
+            Some(e) => (e,d[e+1..].parse::<usize>().unwrap()),
+            None => (d.len(),1)
+        };
+        let dirs = d[2..e].chars().map(|c| match c {
+            'x' => DimDir::X,
+            'y' => DimDir::Y,
+            'z' => DimDir::Z,
+            a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
+        }).collect::<Vec<_>>();
+        (0..n).fold(v, |v,i| diff(v, if (i+start)%2 == 0 { Forward(dirs.clone()) } else { Backward(dirs.clone()) }))
+    },
     Term,
 };
 
@@ -36,14 +50,32 @@ Term: SPDETokens = {
     Num,
     Symb,
     "(" <Expr> ")",
+    "[" <s:Expr> <mut t:("," <Expr>)+> "]" => Vect({t.insert(0,s);t}),
 };
 
 Symb: SPDETokens = {
     r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
-        |acc,PDE{var_name: v, boundary: b, dim: d}| if <> == v { Indexable::new_scalar(*d,&v,&b) } else { acc }),
+        |acc,PDE{var_name: v, boundary: b, dim: d, vector: ve}| if <> == v { if *ve { Indexable::new_vector(*d,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }),
+};
+
+Natural: SPDETokens = {
+    r"[0-9]+" => f64::from_str(<>).unwrap().into(),
+};
+
+Negative: SPDETokens = {
+    r"-[0-9]+" => f64::from_str(<>).unwrap().into(),
+};
+
+Relative: SPDETokens = {
+    Natural,
+    Negative,
+};
+
+Real: SPDETokens = {
+    r"-?[0-9]+\.[0-9]+" => f64::from_str(<>).unwrap().into(),
 };
 
 Num: SPDETokens = {
-    r"[0-9]+" => f64::from_str(<>).unwrap().into(),
-    r"[0-9]+\.[0-9]+" => f64::from_str(<>).unwrap().into(),
+    Real,
+    Relative,
 };

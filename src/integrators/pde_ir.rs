@@ -1,4 +1,4 @@
-use crate::dim::DimDir;
+pub use crate::dim::DimDir;
 use serde::{Serialize,Deserialize};
 //use decorum::R64;
 
@@ -84,6 +84,39 @@ impl SPDETokens {
             Indx(..) => true,
         }
     }
+
+    fn dim(&self) -> Option<usize> {
+        use SPDETokens::*;
+        macro_rules! andthen {
+            ($a:ident $b:ident) => { $a.and_then(|$a| $b.and_then(|$b| if $b == $a { Some($a) } else { None })) };
+            (dim $a:ident dim  $b:ident) => { $a.dim().and_then(|$a| $b.dim().and_then(|$b| if $b == $a { Some($a) } else { None })) };
+            (dim $a:ident  $b:ident) => { $a.dim().and_then(|$a| $b.and_then(|$b| if $b == $a { Some($a) } else { None })) };
+            ($a:ident dim $b:ident) => { $a.and_then(|$a| $b.dim().and_then(|$b| if $b == $a { Some($a) } else { None })) };
+            ($a:ident vec $v:ident) => {
+                $v.iter().fold($a.dim(), |acc,i| {
+                    let i = i.dim();
+                    andthen!(acc i)
+                })
+            };
+        }
+        match self {
+            Add(a,t) => andthen!(a vec t),
+            Sub(a,t) => andthen!(a vec t),
+            Mul(a,t) => andthen!(a vec t),
+            Div(a,t) => andthen!(a vec t),
+            Pow(a,b) => andthen!(dim a dim b),
+            Func(_,v) => {
+                let mut v = v.clone();
+                let s = v.pop().expect("There must be at least one expr in a Func.");
+                andthen!(s vec v)
+            },
+            Symb(_) => Some(1),
+            Const(_) => Some(1),
+            Vect(v) => Some(v.len()),
+            Indx(indx) => Some(indx.dim),
+        }
+    }
+    
     fn _to_ocl(self) -> String {
         use SPDETokens::*;
         macro_rules! foldop {
@@ -154,7 +187,7 @@ impl SPDETokens {
     fn apply_diff(self, dir: DiffDir) -> Self {
         use SPDETokens::*;
 
-        let (coordinc,dirs) = match dir.clone() {
+        let (coordinc,mut dirs) = match dir.clone() {
             Forward(dirs) => (1,dirs),
             Backward(dirs) => (0,dirs)
         };
@@ -166,8 +199,11 @@ impl SPDETokens {
             let r = a.apply_idx(&idx);
             (l-r)*Symb(["ivdx","ivdy","ivdz"][d as usize].into())
         };
+        let _dir = [DimDir::X,DimDir::Y,DimDir::Z];
         match self {
             Vect(v) => {
+                if v.len() > 3 { panic!("Vect has dimension higher than 3, no divergence possible.");  }
+                if dirs.len() == 0 { dirs = v.iter().enumerate().map(|(i,_)| _dir[i]).collect::<Vec<_>>(); }
                 if v.len() != dirs.len() { panic!("Could not apply diff on Vect as the dimension of the Vect and the diff array are different.") }
                 let mut vals = v.into_iter().enumerate().map(|(i,t)| {
                     div(t,dirs[i])
@@ -176,6 +212,15 @@ impl SPDETokens {
                 vals.fold(first, |a,i| a+i)
             },
             a @ _ => {
+                if dirs.len() == 0 {
+                    match a.dim() {
+                        Some(d) => {
+                            if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
+                            dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
+                        },
+                        None => panic!("Diff must be applyed to an expression containing only sub-expression of the same dim (dim of a Const is 1)."),
+                    }
+                }
                 let mut res = dirs.into_iter().map(|d| div(a.clone(),d)).collect::<Vec<_>>();
                 if res.len() == 1 {
                    res.pop().unwrap()
@@ -192,10 +237,12 @@ pub mod ir_helper {
     pub use DiffDir::*;
     pub use SPDETokens::*;
 
+    #[derive(Debug,Clone)]
     pub struct PDE {
         pub var_name: String,
         pub boundary: String,
         pub dim: usize,
+        pub vector: bool,
     }
 
     pub fn func<'a,T: Into<SPDETokens>>(n: &'a str, a: Vec<T>) -> SPDETokens {

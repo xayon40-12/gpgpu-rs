@@ -80,7 +80,7 @@ impl HandlerBuilder {
         }
         for n in needed {
             self = match n {
-                FSNeeded::FuncName(name) => self.load_function(&name),
+                FSNeeded::FuncName(name) => if !self.existing_functions.contains_key(&name) { self.load_function(&name) } else { self },
                 FSNeeded::CreateFunc(func) => self.add_function(func,None,Some(format!("function \"{}\"",name))),
             }
         }

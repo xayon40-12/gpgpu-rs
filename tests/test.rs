@@ -95,11 +95,11 @@ fn sum() -> gpgpu::Result<()> {
     Ok(())
 }
 
-#[test]
+/* #[test]
 fn window_sum() -> gpgpu::Result<()> {
     //TODO
     Ok(())
-}
+} */
 
 #[test]
 fn min() -> gpgpu::Result<()> {

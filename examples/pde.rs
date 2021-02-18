@@ -35,7 +35,7 @@ fn pde_generator_test() -> gpgpu::Result<()> {
     println!("{:?}\n", (symb("a")*1.0/"c").to_ocl());
     println!("{:?}\n", (&v*diff(diff(&u,&f),&b)).to_ocl());
     println!("{:?}\n", (diff(diff(&u,&f),&b)*&v).to_ocl());
-    println!("{:?}\n", func("cos",&u*&v).to_ocl());
+    println!("{:?}\n", func("cos",vec![&u*&v]).to_ocl());
     println!("{:?}\n", diff(diff(&T,&F),&B).to_ocl());
     println!("{:?}\n", diff(&t,&f).to_ocl());
     Ok(())

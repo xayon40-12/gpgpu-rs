@@ -1,34 +1,56 @@
 use std::str::FromStr;
-use crate::integrators::pde_ir::{DiffDir::*,DimDir,ir_helper::*};
+use crate::integrators::pde_ir::{DiffDir::*,DimDir,ir_helper::*,lexer_compositor::*};
+use crate::functions::fix_newton;
 
-grammar(vars: &Vec<PDE>); // (var name, bourndary function name, dim)
+grammar(vars: &[DPDE], fun_len: usize); // (var name, bourndary function name, dim)
 
 match {
     r"cos|sin|tan|acos|asin|atan" => F1,
     r"atan2" => F2,
-    
 } else { _ }
 
-pub Expr: SPDETokens = {
+pub Expr: LexerComp = {
     <l:Expr> "+" <r:Factor> => l + r,
     <l:Expr> "-" <r:Factor> => l - r,
     Factor,
 };
 
-Factor: SPDETokens = {
+Factor: LexerComp = {
     <l:Factor> "*" <r:Pow> => l * r,
     <l:Factor> "/" <r:Pow> => l / r,
     Pow,
 };
 
-Pow: SPDETokens = {
+Pow: LexerComp = {
     <l:Func> "^" <r:Pow> => l ^ r,
     Func,
 };
 
-Func: SPDETokens = {
-    <name:F1> <x:Term> => func(name, vec![x]),
-    <name:F2> "(" <x:Term> "," <y:Term> ")" => func(name, vec![x,y]),
+Func: LexerComp = {
+    <name:F1> <x:Term> => x.apply(|i| func(name, vec![i])),
+    <name:F2> "(" <x:Expr> "," <y:Expr> ")" => compact(vec![x,y]).apply(|i| func(name, i)),
+    "fix" <params:("[" <Num> "," <Num> "]")?> "(" <f:r"[a-zA-Z]\w*"> <vals:("," <Expr>)*> ")" => {
+          let novec = |mut i: Vec<String>| if i.len() > 1 {
+              panic!("Expected single value, found Vect.");
+          } else {
+              i.pop().unwrap()
+          };
+          compact(vals).fuse_apply(|p,len| {
+                let p = p.into_iter().map(|i| novec(i.to_ocl())).collect::<Vec<_>>();
+                let next = p.iter().map(|i| &i[..]).collect::<Vec<&str>>();
+                let (e,max_iter) = if let Some((e,max_iter)) = params {
+                    (e,max_iter as i32)
+                } else {
+                    (1e-3,1000)
+                };
+                let name = format!("_{}_fix", fun_len+len);
+                let fix = fix_newton(&name,f,&next[..],e,max_iter);
+                LexerComp {
+                    token: func(&name, next),
+                    funs: vec![fix],
+                }
+          })
+    },
     <d:r"#[<>]x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
         let start = if &d[1..2] == ">" { 0 } else { 1 };
         let (e,n) = match d.find("^") {
@@ -41,41 +63,41 @@ Func: SPDETokens = {
             'z' => DimDir::Z,
             a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
         }).collect::<Vec<_>>();
-        (0..n).fold(v, |v,i| diff(v, if (i+start)%2 == 0 { Forward(dirs.clone()) } else { Backward(dirs.clone()) }))
+        (0..n).fold(v, |v,i| v.apply(|v| diff(v, if (i+start)%2 == 0 { Forward(dirs.clone()) } else { Backward(dirs.clone()) })))
     },
     Term,
 };
 
-Term: SPDETokens = {
-    Num,
+Term: LexerComp = {
+    Num => <>.into(),
     Symb,
     "(" <Expr> ")",
-    "[" <s:Expr> <mut t:("," <Expr>)+> "]" => Vect({t.insert(0,s);t}),
+    "[" <s:Expr> <mut t:("," <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| Vect(i))},
 };
 
-Symb: SPDETokens = {
+Symb: LexerComp = {
     r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
-        |acc,PDE{var_name: v, boundary: b, dim: d, vector: ve}| if <> == v { if *ve { Indexable::new_vector(*d,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }),
+        |acc,DPDE{var_name: v, boundary: b, dim: d, vector: ve}| if <> == v { if *ve { Indexable::new_vector(*d,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }).into(),
 };
 
-Natural: SPDETokens = {
-    r"[0-9]+" => f64::from_str(<>).unwrap().into(),
+Natural: f64 = {
+    r"[0-9]+" => f64::from_str(<>).unwrap(),
 };
 
-Negative: SPDETokens = {
-    r"-[0-9]+" => f64::from_str(<>).unwrap().into(),
+Negative: f64 = {
+    r"-[0-9]+" => f64::from_str(<>).unwrap(),
 };
 
-Relative: SPDETokens = {
+Relative: f64 = {
     Natural,
     Negative,
 };
 
-Real: SPDETokens = {
-    r"-?[0-9]+\.[0-9]+" => f64::from_str(<>).unwrap().into(),
+Real: f64 = {
+    r"-?[0-9]+\.[0-9]+(e[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
 
-Num: SPDETokens = {
+Num: f64 = {
     Real,
     Relative,
 };

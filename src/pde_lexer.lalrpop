@@ -4,11 +4,6 @@ use crate::functions::fix_newton;
 
 grammar(vars: &[DPDE], fun_len: usize); // (var name, bourndary function name, dim)
 
-match {
-    r"cos|sin|tan|acos|asin|atan" => F1,
-    r"atan2" => F2,
-} else { _ }
-
 pub Expr: LexerComp = {
     <l:Expr> "+" <r:Factor> => l + r,
     <l:Expr> "-" <r:Factor> => l - r,
@@ -27,8 +22,6 @@ Pow: LexerComp = {
 };
 
 Func: LexerComp = {
-    <name:F1> <x:Term> => x.apply(|i| func(name, vec![i])),
-    <name:F2> "(" <x:Expr> "," <y:Expr> ")" => compact(vec![x,y]).apply(|i| func(name, i)),
     "fix" <params:("[" <Num> "," <Num> "]")?> "(" <f:r"[a-zA-Z]\w*"> <vals:("," <Expr>)*> ")" => {
           let novec = |mut i: Vec<String>| if i.len() > 1 {
               panic!("Expected single value, found Vect.");
@@ -51,18 +44,24 @@ Func: LexerComp = {
                 }
           })
     },
-    <d:r"#[<>]x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
-        let start = if &d[1..2] == ">" { 0 } else { 1 };
-        let (e,n) = match d.find("^") {
-            Some(e) => (e,d[e+1..].parse::<usize>().unwrap()),
-            None => (d.len(),1)
+    <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).apply(|i| func(name, i))},
+    <d:r"#[<>]?x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
+        let (start,n,dirs) = if d.len() > 1 {
+            let (start,s) = if &d[1..2] == ">" { (0,2) } else if &d[1..2] == "<" { (1,2) } else { (0,1) };
+            let (e,n) = match d.find("^") {
+                Some(e) => (e,d[e+1..].parse::<usize>().unwrap()),
+                None => (d.len(),1)
+            };
+            let dirs = d[s..e].chars().map(|c| match c {
+                'x' => DimDir::X,
+                'y' => DimDir::Y,
+                'z' => DimDir::Z,
+                a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
+            }).collect::<Vec<_>>();
+            (start,n,dirs)
+        } else {
+            (0,1,vec![])
         };
-        let dirs = d[2..e].chars().map(|c| match c {
-            'x' => DimDir::X,
-            'y' => DimDir::Y,
-            'z' => DimDir::Z,
-            a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
-        }).collect::<Vec<_>>();
         (0..n).fold(v, |v,i| v.apply(|v| diff(v, if (i+start)%2 == 0 { Forward(dirs.clone()) } else { Backward(dirs.clone()) })))
     },
     Term,
@@ -73,19 +72,20 @@ Term: LexerComp = {
     Symb,
     "(" <Expr> ")",
     "[" <s:Expr> <mut t:("," <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| Vect(i))},
+    "[" <s:Expr> <mut t:(";" <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| Vect(i))},
 };
 
 Symb: LexerComp = {
     r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
-        |acc,DPDE{var_name: v, boundary: b, dim: d, vector: ve}| if <> == v { if *ve { Indexable::new_vector(*d,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }).into(),
+        |acc,DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd}| if <> == v { if *vd>1 { Indexable::new_vector(*d,*vd,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }).into(),
 };
 
 Natural: f64 = {
-    r"[0-9]+" => f64::from_str(<>).unwrap(),
+    r"[0-9]+(e-?[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
 
 Negative: f64 = {
-    r"-[0-9]+" => f64::from_str(<>).unwrap(),
+    r"-[0-9]+(e-?[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
 
 Relative: f64 = {
@@ -94,7 +94,7 @@ Relative: f64 = {
 };
 
 Real: f64 = {
-    r"-?[0-9]+\.[0-9]+(e[0-9]+)?" => f64::from_str(<>).unwrap(),
+    r"-?[0-9]+\.[0-9]+(e-?[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
 
 Num: f64 = {

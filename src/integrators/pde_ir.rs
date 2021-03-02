@@ -47,6 +47,9 @@ impl Indexable {
         self
     }
     pub fn new_scalar<'a>(dim: usize, var_name: &'a str, boundary: &'a str) -> SPDETokens {
+        if dim > 3 {
+            panic!("Dimension of Indexable must be 1, 2 or 3.")
+        }
         SPDETokens::Indx(Indexable {
             coord: [0; 4],
             dim,
@@ -55,18 +58,38 @@ impl Indexable {
             boundary: boundary.into(),
         })
     }
-    pub fn new_vector<'a>(dim: usize, var_name: &'a str, boundary: &'a str) -> SPDETokens {
-        if dim > 3 {
-            panic!("Dimension of IndexingTypes::Vector must be 1, 2 or 3.")
+    pub fn new_vector<'a>(
+        var_dim: usize,
+        vec_dim: usize,
+        var_name: &'a str,
+        boundary: &'a str,
+    ) -> SPDETokens {
+        Indexable::new_slice(var_dim, vec_dim, 0..vec_dim, var_name, boundary)
+    }
+    pub fn new_slice<'a>(
+        var_dim: usize,
+        vec_dim: usize,
+        slice: std::ops::Range<usize>,
+        var_name: &'a str,
+        boundary: &'a str,
+    ) -> SPDETokens {
+        if var_dim > 3 {
+            panic!("Dimension of Indexable must be 1, 2 or 3.");
+        }
+        if slice.end > vec_dim {
+            panic!(
+                "Slice ({:?}) out of bounds for var '{}' of vectarial dim {}.",
+                slice, var_name, vec_dim
+            );
         }
         SPDETokens::Vect(
-            (0..dim)
+            slice
                 .map(|i| {
                     let mut coord = [0; 4];
                     coord[3] = i as i32;
                     SPDETokens::Indx(Indexable {
                         coord,
-                        dim,
+                        dim: var_dim,
                         vector: true,
                         var_name: var_name.into(),
                         boundary: boundary.into(),
@@ -259,10 +282,10 @@ impl SPDETokens {
         let _dir = [DimDir::X, DimDir::Y, DimDir::Z];
         match self {
             Vect(v) => {
-                if v.len() > 3 {
-                    panic!("Vect has dimension higher than 3, no divergence possible.");
-                }
                 if dirs.len() == 0 {
+                    if v.len() > 3 {
+                        panic!("Vect has dimension higher than 3, no divergence possible.");
+                    }
                     dirs = v
                         .iter()
                         .enumerate()
@@ -312,8 +335,8 @@ pub mod ir_helper {
     pub struct DPDE {
         pub var_name: String,
         pub boundary: String,
-        pub dim: usize,
-        pub vector: bool,
+        pub var_dim: usize,
+        pub vec_dim: usize,
     }
 
     pub fn func<'a, T: Into<SPDETokens>>(n: &'a str, a: Vec<T>) -> SPDETokens {

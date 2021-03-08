@@ -35,7 +35,7 @@ Algorithms:
 - [x] 1,2,3D Fourier transform  
 
 Integrators:  
-- [ ] PDE generator
+- [x] PDE generator
 - [x] Euler  
 - [ ] QSS  
 

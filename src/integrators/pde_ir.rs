@@ -46,7 +46,7 @@ impl Indexable {
         }
         self
     }
-    pub fn new_scalar<'a>(dim: usize, var_name: &'a str, boundary: &'a str) -> SPDETokens {
+    pub fn new_scalar(dim: usize, var_name: &str, boundary: &str) -> SPDETokens {
         if dim > 3 {
             panic!("Dimension of Indexable must be 1, 2 or 3.")
         }
@@ -58,41 +58,46 @@ impl Indexable {
             boundary: boundary.into(),
         })
     }
-    pub fn new_vector<'a>(
+    pub fn new_vector(
         var_dim: usize,
         vec_dim: usize,
-        var_name: &'a str,
-        boundary: &'a str,
+        var_name: &str,
+        boundary: &str,
     ) -> SPDETokens {
-        Indexable::new_slice(var_dim, vec_dim, 0..vec_dim, var_name, boundary)
+        Indexable::new_slice(var_dim, vec_dim, &[0..vec_dim], var_name, boundary)
     }
-    pub fn new_slice<'a>(
+    pub fn new_slice(
         var_dim: usize,
         vec_dim: usize,
-        slice: std::ops::Range<usize>,
-        var_name: &'a str,
-        boundary: &'a str,
+        slices: &[std::ops::Range<usize>],
+        var_name: &str,
+        boundary: &str,
     ) -> SPDETokens {
         if var_dim > 3 {
             panic!("Dimension of Indexable must be 1, 2 or 3.");
         }
-        if slice.end > vec_dim {
-            panic!(
-                "Slice ({:?}) out of bounds for var '{}' of vectarial dim {}.",
-                slice, var_name, vec_dim
-            );
+        for slice in slices {
+            if slice.end > vec_dim {
+                panic!(
+                    "Slice ({:?}) out of bounds for var '{}' of vectarial dim {}.",
+                    slice, var_name, vec_dim
+                );
+            }
         }
         SPDETokens::Vect(
-            slice
-                .map(|i| {
-                    let mut coord = [0; 4];
-                    coord[3] = i as i32;
-                    SPDETokens::Indx(Indexable {
-                        coord,
-                        dim: var_dim,
-                        vector: true,
-                        var_name: var_name.into(),
-                        boundary: boundary.into(),
+            slices
+                .iter()
+                .flat_map(|slice| {
+                    slice.clone().map(|i| {
+                        let mut coord = [0; 4];
+                        coord[3] = i as i32;
+                        SPDETokens::Indx(Indexable {
+                            coord,
+                            dim: var_dim,
+                            vector: true,
+                            var_name: var_name.into(),
+                            boundary: boundary.into(),
+                        })
                     })
                 })
                 .collect(),
@@ -168,7 +173,7 @@ impl SPDETokens {
             Symb(_) => Some(1),
             Const(_) => Some(1),
             Vect(v) => Some(v.len()),
-            Indx(indx) => Some(indx.dim),
+            Indx(..) => Some(1),
         }
     }
     fn _to_ocl(self) -> String {

@@ -14,12 +14,13 @@ use DiffDir::*;
 pub struct Indexable {
     coord: [i32; 4],
     dim: usize,
-    vector: bool,
+    global_dim: usize,
+    vec_dim: usize,
     var_name: String,
     boundary: String,
 }
 
-fn coords_str(c: &[i32; 4], dim: usize, vector: bool) -> String {
+fn coords_str(c: &[i32; 4], dim: usize, vec_dim: usize) -> String {
     let coo = |i| {
         format!(
             "{}{}{}",
@@ -33,11 +34,7 @@ fn coords_str(c: &[i32; 4], dim: usize, vector: bool) -> String {
         )
     };
     let res = (1..dim).fold(coo(0), |a, i| format!("{},{}", a, coo(i)));
-    if vector {
-        format!("{},{}", res, c[3])
-    } else {
-        res
-    }
+    format!("{},{},{}", res, c[3], vec_dim)
 }
 impl Indexable {
     pub fn apply_idx(mut self, idx: &[i32; 4]) -> Self {
@@ -46,28 +43,38 @@ impl Indexable {
         }
         self
     }
-    pub fn new_scalar(dim: usize, var_name: &str, boundary: &str) -> SPDETokens {
+    pub fn new_scalar(dim: usize, global_dim: usize, var_name: &str, boundary: &str) -> SPDETokens {
         if dim > 3 {
             panic!("Dimension of Indexable must be 1, 2 or 3.")
         }
         SPDETokens::Indx(Indexable {
             coord: [0; 4],
             dim,
-            vector: false,
+            global_dim,
+            vec_dim: 1,
             var_name: var_name.into(),
             boundary: boundary.into(),
         })
     }
     pub fn new_vector(
         var_dim: usize,
+        global_dim: usize,
         vec_dim: usize,
         var_name: &str,
         boundary: &str,
     ) -> SPDETokens {
-        Indexable::new_slice(var_dim, vec_dim, &[0..vec_dim], var_name, boundary)
+        Indexable::new_slice(
+            var_dim,
+            global_dim,
+            vec_dim,
+            &[0..vec_dim],
+            var_name,
+            boundary,
+        )
     }
     pub fn new_slice(
         var_dim: usize,
+        global_dim: usize,
         vec_dim: usize,
         slices: &[std::ops::Range<usize>],
         var_name: &str,
@@ -94,7 +101,8 @@ impl Indexable {
                         SPDETokens::Indx(Indexable {
                             coord,
                             dim: var_dim,
-                            vector: true,
+                            global_dim,
+                            vec_dim,
                             var_name: var_name.into(),
                             boundary: boundary.into(),
                         })
@@ -107,7 +115,7 @@ impl Indexable {
         format!(
             "{}({},{})",
             self.boundary,
-            coords_str(&self.coord, self.dim, self.vector),
+            coords_str(&self.coord, self.global_dim, self.vec_dim),
             self.var_name
         )
     }

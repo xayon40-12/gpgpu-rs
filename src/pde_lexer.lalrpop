@@ -2,7 +2,7 @@ use std::str::FromStr;
 use crate::integrators::pde_ir::{DiffDir::*,DimDir,ir_helper::*,lexer_compositor::*};
 use crate::functions::fix_newton;
 
-grammar(vars: &[DPDE], fun_len: usize); // (var name, bourndary function name, dim)
+grammar(vars: &[DPDE], fun_len: usize, gd: usize); // (var name, bourndary function name, dim)
 
 pub Expr: LexerComp = {
     <l:Expr> "+" <r:Factor> => l + r,
@@ -77,7 +77,7 @@ Term: LexerComp = {
 
 Symb: LexerComp = {
     r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
-        |acc,DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd}| if <> == v { if *vd>1 { Indexable::new_vector(*d,*vd,&v,&b) } else { Indexable::new_scalar(*d,&v,&b) } } else { acc }).into(),
+        |acc,DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd}| if <> == v { if *vd>1 { Indexable::new_vector(*d,gd,*vd,&v,&b) } else { Indexable::new_scalar(*d,gd,&v,&b) } } else { acc }).into(),
 };
 
 Natural: f64 = {

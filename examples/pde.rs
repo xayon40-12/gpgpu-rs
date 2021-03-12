@@ -26,11 +26,11 @@ fn main() -> gpgpu::Result<()> {
 
 #[allow(non_snake_case)]
 fn pde_generator_test() -> gpgpu::Result<()> {
-    let u = Indexable::new_vector(2, 2, "u", "b");
-    let u34 = Indexable::new_vector(3, 5, "u", "b");
-    let u34s = Indexable::new_slice(3, 5, &[1..5], "u", "b");
-    let T = Indexable::new_scalar(1, "T", "b");
-    let t = Indexable::new_scalar(2, "t", "b");
+    let u = Indexable::new_vector(2, 2, 2, "u", "b");
+    let u34 = Indexable::new_vector(3, 3, 5, "u", "b");
+    let u34s = Indexable::new_slice(3, 3, 5, &[1..5], "u", "b");
+    let T = Indexable::new_scalar(1, 1, "T", "b");
+    let t = Indexable::new_scalar(2, 2, "t", "b");
     let v = vect![Const(1.0), Const(2.0)];
     let f = Forward(vec![X, Y]);
     let b = Backward(vec![X, Y]);
@@ -197,7 +197,7 @@ fn diffusion_int_vect() -> gpgpu::Result<()> {
 
 #[allow(non_snake_case)]
 fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
-    let u = Indexable::new_scalar(1, "u", "b");
+    let u = Indexable::new_scalar(1, 1, "u", "b");
     let D = symb("D");
     let f = Forward(vec![X]);
     let b = Backward(vec![X]);

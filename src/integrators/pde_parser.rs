@@ -21,9 +21,10 @@ pub struct Parsed {
 pub fn parse<'a>(
     context: &[DPDE],
     fun_len: usize,
+    global_dim: usize,
     math: &'a str,
 ) -> Result<Parsed, lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'a>, &'a str>> {
-    let parsed = pde_lexer::ExprParser::new().parse(context, fun_len, math)?;
+    let parsed = pde_lexer::ExprParser::new().parse(context, fun_len, global_dim, math)?;
     Ok(Parsed {
         ocl: parsed.token.to_ocl(),
         funs: parsed.funs,
@@ -32,7 +33,7 @@ pub fn parse<'a>(
 
 #[test]
 fn pde_lexer() {
-    let parse = |c: &[DPDE], f: usize, m: &str| parse(c, f, m).unwrap();
+    let parse = |c: &[DPDE], f: usize, gd: usize, m: &str| parse(c, gd, f, m).unwrap();
     let u = DPDE {
         var_name: "u".into(),
         boundary: "b".into(),
@@ -47,18 +48,21 @@ fn pde_lexer() {
         vec_dim: 3,
     };
     let vu = [v];
-    println!("{:?}", parse(&pu, 0, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7"));
-    println!("{:?}", parse(&[], 0, "2^3^4"));
-    println!("{:?}", parse(&[], 0, "[1,cos(2),4]"));
-    println!("{:?}", parse(&[], 0, "[1;cos(2);4]"));
-    println!("{:?}", parse(&pu, 0, "#>xz u"));
-    println!("{:?}", parse(&pu, 0, "#<xz u"));
-    println!("{:?}", parse(&pu, 0, "#>xz^2 u"));
-    println!("{:?}", parse(&pu, 0, "#<xz^2 u"));
-    println!("{:?}", parse(&pu, 0, "#>xz [u,u]"));
-    println!("{:?}", parse(&vu, 0, "#> v"));
-    println!("{:?}", parse(&pu, 0, "#> u"));
-    println!("{:?}", parse(&[], 0, "cos (sin (3)) + atan2(3, 4)^1.5"));
-    println!("{:?}", parse(&[], 0, "cos (sin (3)) + atan2(3, 4)^1.5"));
-    println!("{:?}", parse(&[], 1, "fix(f,fix(b,r))"))
+    println!(
+        "{:?}",
+        parse(&pu, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")
+    );
+    println!("{:?}", parse(&[], 0, 3, "2^3^4"));
+    println!("{:?}", parse(&[], 0, 3, "[1,cos(2),4]"));
+    println!("{:?}", parse(&[], 0, 3, "[1;cos(2);4]"));
+    println!("{:?}", parse(&pu, 0, 3, "#>xz u"));
+    println!("{:?}", parse(&pu, 0, 3, "#<xz u"));
+    println!("{:?}", parse(&pu, 0, 3, "#>xz^2 u"));
+    println!("{:?}", parse(&pu, 0, 3, "#<xz^2 u"));
+    println!("{:?}", parse(&pu, 0, 3, "#>xz [u,u]"));
+    println!("{:?}", parse(&vu, 0, 3, "#> v"));
+    println!("{:?}", parse(&pu, 0, 3, "#> u"));
+    println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
+    println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
+    println!("{:?}", parse(&[], 1, 3, "fix(f,fix(b,r))"))
 }

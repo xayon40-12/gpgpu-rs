@@ -1,44 +1,46 @@
-use serde::{Serialize,Deserialize};
 use ocl::prm::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug,Clone)]
-pub enum KernelArg<'a> { //TODO use one SC for each &'a str
+#[derive(Debug, Clone)]
+pub enum KernelArg<'a> {
+    //TODO use one SC for each &'a str
     Param(&'a str, Types),
     Buffer(&'a str),
-    BufArg(&'a str,&'a str), // BufArg(mem buf, kernel buf)
+    BufArg(&'a str, &'a str), // BufArg(mem buf, kernel buf)
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SKernelArg {
     Param(String, Types),
     Buffer(String),
-    BufArg(String,String), // BufArg(mem buf, kernel buf)
+    BufArg(String, String), // BufArg(mem buf, kernel buf)
 }
 
 impl<'a> From<&KernelArg<'a>> for SKernelArg {
     fn from(n: &KernelArg<'a>) -> Self {
         match n {
-            KernelArg::Param(s,e) => SKernelArg::Param((*s).into(),*e),
+            KernelArg::Param(s, e) => SKernelArg::Param((*s).into(), *e),
             KernelArg::Buffer(s) => SKernelArg::Buffer((*s).into()),
-            KernelArg::BufArg(s,ss) => SKernelArg::BufArg((*s).into(),(*ss).into()),
+            KernelArg::BufArg(s, ss) => SKernelArg::BufArg((*s).into(), (*ss).into()),
         }
     }
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BufferConstructor {
-    Len(Types,usize), // Len(repeated value, len)
+    Len(Types, usize), // Len(repeated value, len)
     Data(VecTypes),
 }
 
-#[derive(Debug,Clone)]
-pub enum KernelConstructor<'a> { //TODO use one SC for each &'a str
+#[derive(Debug, Clone)]
+pub enum KernelConstructor<'a> {
+    //TODO use one SC for each &'a str
     KCParam(&'a str, ConstructorTypes),
     KCBuffer(&'a str, ConstructorTypes),
     KCConstBuffer(&'a str, ConstructorTypes),
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SKernelConstructor {
     KCParam(String, ConstructorTypes),
     KCBuffer(String, ConstructorTypes),
@@ -48,22 +50,30 @@ pub enum SKernelConstructor {
 impl<'a> From<&KernelConstructor<'a>> for SKernelConstructor {
     fn from(n: &KernelConstructor<'a>) -> Self {
         match n {
-            KernelConstructor::KCParam(s,e) => SKernelConstructor::KCParam((*s).into(),*e),
-            KernelConstructor::KCBuffer(s,e) => SKernelConstructor::KCBuffer((*s).into(),*e),
-            KernelConstructor::KCConstBuffer(s,e) => SKernelConstructor::KCConstBuffer((*s).into(),*e),
+            KernelConstructor::KCParam(s, e) => SKernelConstructor::KCParam((*s).into(), *e),
+            KernelConstructor::KCBuffer(s, e) => SKernelConstructor::KCBuffer((*s).into(), *e),
+            KernelConstructor::KCConstBuffer(s, e) => {
+                SKernelConstructor::KCConstBuffer((*s).into(), *e)
+            }
         }
     }
 }
+impl<'a> From<KernelConstructor<'a>> for SKernelConstructor {
+    fn from(n: KernelConstructor<'a>) -> Self {
+        (&n).into()
+    }
+}
 
-#[derive(Debug,Clone)]
-pub enum FunctionConstructor<'a> { //TODO use one SC for each &'a str
+#[derive(Debug, Clone)]
+pub enum FunctionConstructor<'a> {
+    //TODO use one SC for each &'a str
     FCParam(&'a str, ConstructorTypes),
     FCPtr(&'a str, ConstructorTypes),
     FCGlobalPtr(&'a str, ConstructorTypes),
     FCConstPtr(&'a str, ConstructorTypes),
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SFunctionConstructor {
     FCParam(String, ConstructorTypes),
     FCPtr(String, ConstructorTypes),
@@ -74,10 +84,14 @@ pub enum SFunctionConstructor {
 impl<'a> From<&FunctionConstructor<'a>> for SFunctionConstructor {
     fn from(n: &FunctionConstructor<'a>) -> Self {
         match n {
-            FunctionConstructor::FCParam(s,e) => SFunctionConstructor::FCParam((*s).into(),*e),
-            FunctionConstructor::FCPtr(s,e) => SFunctionConstructor::FCPtr((*s).into(),*e),
-            FunctionConstructor::FCGlobalPtr(s,e) => SFunctionConstructor::FCGlobalPtr((*s).into(),*e),
-            FunctionConstructor::FCConstPtr(s,e) => SFunctionConstructor::FCConstPtr((*s).into(),*e),
+            FunctionConstructor::FCParam(s, e) => SFunctionConstructor::FCParam((*s).into(), *e),
+            FunctionConstructor::FCPtr(s, e) => SFunctionConstructor::FCPtr((*s).into(), *e),
+            FunctionConstructor::FCGlobalPtr(s, e) => {
+                SFunctionConstructor::FCGlobalPtr((*s).into(), *e)
+            }
+            FunctionConstructor::FCConstPtr(s, e) => {
+                SFunctionConstructor::FCConstPtr((*s).into(), *e)
+            }
         }
     }
 }
@@ -141,7 +155,6 @@ macro_rules! gen_types {
             }
         }
 
-      
         #[derive(Debug,Clone,Copy,Serialize,Deserialize)]
         #[repr(C)]
         pub enum $Types {
@@ -157,7 +170,7 @@ macro_rules! gen_types {
             }
             pub fn gen_buffer(&self, pq: &ocl::ProQue, len: usize) -> crate::Result<$BufferTypes> {
                 match self {
-                    $(Self::$type(v) => 
+                    $(Self::$type(v) =>
                         Ok($BufferTypes::$btype(pq.buffer_builder()
                         .len(len)
                         .fill_val(unsafe {std::mem::transmute::<_,$type_ocl>(*v)})
@@ -170,7 +183,6 @@ macro_rules! gen_types {
                     $(Self::$type(t) => format!("{:?}", t),)+
                 }
             }
-            
             pub fn len(&self) -> usize {
                 match self {
                     $(Self::$type(..) => $len,)+
@@ -192,7 +204,6 @@ macro_rules! gen_types {
             }
         })+
 
-  
         pub enum $BufferTypes {
             $($btype(ocl::Buffer<$type_ocl>),)+
         }
@@ -271,7 +282,7 @@ macro_rules! gen_types {
             impl_names!($($vtype|$type_rust|$type_opencl)+);
             pub fn gen_buffer(&self, pq: &ocl::ProQue) -> crate::Result<$BufferTypes> {
                 match self {
-                    $(Self::$vtype(v) => 
+                    $(Self::$vtype(v) =>
                         Ok($BufferTypes::$btype(pq.buffer_builder()
                        .len(v.len())
                        .copy_host_slice(unsafe {std::mem::transmute::<_,&[$type_ocl]>(&v[..])})
@@ -295,7 +306,6 @@ macro_rules! gen_types {
         })+
     };
 }
-
 
 gen_types!(Types ConstructorTypes BufferTypes VecTypes,
     F64   F64_ref   CF64   CF64_ref   BF64   BF64_ref   VF64   VF64_ref  | f64    |1|f64    |"double"

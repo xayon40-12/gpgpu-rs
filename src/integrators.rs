@@ -30,8 +30,10 @@ pub struct IntegratorParam {
 // Each PDE must be first order in time. A higher order PDE can be cut in multiple first order PDE.
 // Example: d2u/dt2 + du/dt = u   =>   du/dt = z, dz/dt = u.
 // It is why the parameter pdes is a Vec.
-pub fn create_euler_pde<'a>(
-    name: &'a str,
+pub type CreatePDE =
+    fn(&str, f64, Vec<SPDE>, Option<Vec<String>>, Vec<(String, ConstructorTypes)>) -> SAlgorithm;
+pub fn create_euler_pde(
+    name: &str,
     dt: f64,
     pdes: Vec<SPDE>,
     needed_buffers: Option<Vec<String>>,
@@ -39,8 +41,8 @@ pub fn create_euler_pde<'a>(
 ) -> SAlgorithm {
     multistages_algorithm(name, &pdes, needed_buffers, params, dt, vec![vec![1.0]])
 }
-pub fn create_projector_corrector_pde<'a>(
-    name: &'a str,
+pub fn create_projector_corrector_pde(
+    name: &str,
     dt: f64,
     pdes: Vec<SPDE>,
     needed_buffers: Option<Vec<String>>,
@@ -55,8 +57,8 @@ pub fn create_projector_corrector_pde<'a>(
         vec![vec![1.0], vec![0.5, 0.5]],
     )
 }
-pub fn create_rk4_pde<'a>(
-    name: &'a str,
+pub fn create_rk4_pde(
+    name: &str,
     dt: f64,
     pdes: Vec<SPDE>,
     needed_buffers: Option<Vec<String>>,
@@ -186,7 +188,7 @@ fn multistages_algorithm(
                   dim: Dim,
                   _dimdir: &[DimDir],
                   bufs: &[&str],
-                  mut other: AlgorithmParam| {
+                  other: AlgorithmParam| {
                 // bufs[0] = dst
                 // bufs[1,2,...] = differential equation buffer holders in the same order as giver for
                 // create_euler function
@@ -199,8 +201,8 @@ fn multistages_algorithm(
                         &name, &len
                     );
                 }
-                let IntegratorParam{ref mut t,ref increment_name,args: iargs} = other
-                .downcast_mut("There must be an Mut(&mut IntegratorParam) given as optional argument in Multistages integrator algorithm.");
+                let IntegratorParam{t,ref increment_name,args: iargs} = other
+                .downcast_ref("There must be an Ref(&IntegratorParam) given as optional argument in Multistages integrator algorithm.");
                 let mut args = vec![BufArg("", ""); vars.len() + 1];
                 if let Some(ns) = &needed_buffers {
                     let mut i = nb_pde_buffers;
@@ -250,7 +252,6 @@ fn multistages_algorithm(
                     }
                 }
 
-                *t += dt;
                 Ok(None)
             },
         ),

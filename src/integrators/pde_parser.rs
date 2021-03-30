@@ -48,6 +48,13 @@ fn pde_lexer() {
         vec_dim: 3,
     };
     let vu = [v];
+    let large = DPDE {
+        var_name: "l".into(),
+        boundary: "b".into(),
+        var_dim: 2,
+        vec_dim: 10,
+    };
+    let lu = [large];
     println!(
         "{:?}",
         parse(&pu, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")
@@ -64,5 +71,6 @@ fn pde_lexer() {
     println!("{:?}", parse(&pu, 0, 3, "#> u"));
     println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
     println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
-    println!("{:?}", parse(&[], 1, 3, "fix(f,fix(b,r))"))
+    println!("{:?}", parse(&[], 1, 3, "fix(f,fix(b,r))"));
+    println!("{:?}", parse(&lu, 0, 2, "l[4..6,2,7..9]*l[0..6]"));
 }

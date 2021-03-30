@@ -78,6 +78,22 @@ Term: LexerComp = {
 Symb: LexerComp = {
     r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
         |acc,DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd}| if <> == v { if *vd>1 { Indexable::new_vector(*d,gd,*vd,&v,&b) } else { Indexable::new_scalar(*d,gd,&v,&b) } } else { acc }).into(),
+    r"[a-zA-Z]\w*\[\d+(\.\.\d+)?(,\d+(\.\.\d+)?)*\]" => {
+        let tmp = <>.split("[").collect::<Vec<_>>();
+        let name = tmp[0];
+        let vals = tmp[1][..tmp[1].len()-1].split(",").collect::<Vec<_>>();
+        let DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd} = vars.iter().fold(None, |acc,d|
+            if name == d.var_name { Some(d) } else { acc }).expect(&format!("symbol \"{}\" not found in equations or pdes.", name));
+        let slices = vals.into_iter().map(|i| {
+            let s = i.split("..").map(|d| d.parse::<usize>().unwrap()).collect::<Vec<_>>();
+            if s.len() == 1 {
+                s[0]..s[0]+1
+            } else {
+                s[0]..s[1]+1 // inclusive range for lexer
+            }
+        }).collect::<Vec<_>>();
+        Indexable::new_slice(*d, gd, *vd, &slices[..], &v, &b).into()
+    },
 };
 
 Natural: f64 = {

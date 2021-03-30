@@ -85,10 +85,17 @@ impl Indexable {
         }
         for slice in slices {
             if slice.end > vec_dim {
-                panic!(
-                    "Slice ({:?}) out of bounds for var '{}' of vectarial dim {}.",
-                    slice, var_name, vec_dim
-                );
+                if slice.len() == 1 {
+                    panic!(
+                        "Index ({}) out of bounds for var '{}' of vectarial dim {}.",
+                        slice.start, var_name, vec_dim
+                    );
+                } else {
+                    panic!(
+                        "Slice ({:?}) out of bounds for var '{}' of vectarial dim {}.",
+                        slice, var_name, vec_dim
+                    );
+                }
             }
         }
         SPDETokens::Vect(

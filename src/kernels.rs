@@ -220,20 +220,84 @@ pub fn kernels() -> HashMap<&'static str, Kernel<'static>> {
         ].into_iter().map(|k| (k.name,k)).collect()
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RMean {
+    pub val: f64,
+    pub count: f64,
+    pub pos: f64,
+}
+impl RMean {
+    fn new(val: f64, count: f64, pos: f64) -> RMean {
+        RMean { val, count, pos }
+    }
+    fn empty() -> RMean {
+        RMean {
+            val: 0.0,
+            count: 0.0,
+            pos: 0.0,
+        }
+    }
+}
+use std::ops::{Add, AddAssign, Mul, Sub};
+impl Add for RMean {
+    type Output = RMean;
+    fn add(self, rhs: RMean) -> RMean {
+        RMean {
+            val: self.val + rhs.val,
+            count: self.count + rhs.count,
+            pos: self.pos + rhs.pos,
+        }
+    }
+}
+impl Sub for RMean {
+    type Output = RMean;
+    fn sub(self, rhs: RMean) -> RMean {
+        RMean {
+            val: self.val - rhs.val,
+            count: self.count - rhs.count,
+            pos: self.pos - rhs.pos,
+        }
+    }
+}
+impl AddAssign for RMean {
+    fn add_assign(&mut self, rhs: RMean) {
+        *self = *self + rhs;
+    }
+}
+impl Mul<RMean> for f64 {
+    type Output = RMean;
+    fn mul(self, a: RMean) -> RMean {
+        RMean {
+            val: self * a.val,
+            count: self * a.count,
+            pos: self * a.pos,
+        }
+    }
+}
+
 // this should be a kernel but there is no real atomic add for double in opencl 1.2
-pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<f64> {
+pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<RMean> {
     let dim_len = dim
         .iter()
         .map(|i| if *i > 0 { 1 } else { 0 })
         .fold(0, |a, i| a + i);
-    let num = (1.0
-        + usize::max(dim[0], usize::max(dim[1], dim[2])) as f64 * f64::sqrt(dim_len as f64) / 2.0)
-        as usize;
-    let mut res = vec![0.0; num];
-    let mut count = vec![0; num];
+    let num = (usize::max(dim[0], usize::max(dim[1], dim[2])) as f64 * f64::sqrt(dim_len as f64)
+        / 2.0) as usize;
+    let mut res = vec![RMean::empty(); num + 1];
 
     let radius = f64::sqrt(phy[0] * phy[0] + phy[1] * phy[1] + phy[2] * phy[2]) / 2.0;
     let pc = (0..3).map(|i| phy[i] / 2.0).collect::<Vec<_>>();
+
+    //TODO radmean: use a hashmap where key is (abs(x-dim[0]/2)+abs(y-dim[1]/2)+abs(z-dim[2]/2)) and value is a tuple(res,count,(x,y,z))
+    // at the end convert this hashmap to a sorted array per distance by converting (x,y,z) to a distance in fm
+    // then apply res/count for each values
+    // then convert this array to an array of num elements by interpolation
+    let start = RMean::new(
+        a[dim[0] / 2 + dim[0] * (dim[1] / 2 + dim[1] * dim[2] / 2)],
+        1.0,
+        0.0,
+    );
+    let end = RMean::new(a[0], 1.0, radius);
     for z in 0..dim[2] {
         for y in 0..dim[1] {
             for x in 0..dim[0] {
@@ -242,17 +306,25 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<f64> {
                     .map(|i| [x, y, z][i] as f64 * phy[i] / dim[i] as f64 - pc[i])
                     .collect::<Vec<_>>();
                 let pr = f64::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-                let pid = (num as f64 * pr / radius * 0.99999999999999) as usize;
                 // TODO think about summing spherical portions of cells
                 //let portion = ;
-                res[pid] += a[id]; //*portion;
-                count[pid] += 1;
+                let pid = (num as f64 * pr / radius * 0.99999999999999) as usize;
+                res[pid] += RMean::new(a[id], 1.0, pr);
             }
         }
     }
-    for i in 0..num {
-        res[i] /= count[i] as f64;
+
+    for res in res.iter_mut() {
+        res.val /= res.count;
+        res.pos /= res.count;
     }
+    for i in (1..num).rev() {
+        let pos = radius * i as f64 / num as f64;
+        let mul = (pos - res[i - 1].pos) / (res[i].pos - res[i - 1].pos);
+        res[i] = res[i - 1] + mul * (res[i] - res[i - 1]);
+    }
+    res[0] = start;
+    res[num] = end;
 
     res
 }
@@ -262,26 +334,32 @@ fn radial_test() {
     let s = 100usize;
     let p = 10.0;
     let s2 = s as i32 / 2;
+    let dx = 0.01;
+    let f = |x: f64| f64::exp(-x * x) / x;
     let a = (0..s as i32)
         .flat_map(move |z| {
             (0..s as i32).flat_map(move |y| {
                 (0..s as i32).map(move |x| {
-                    f64::sqrt(
+                    let u = f64::sqrt(
                         ((x - s2) * (x - s2) + (y - s2) * (y - s2) + (z - s2) * (z - s2)) as f64
                             / (s * s) as f64
                             * (p * p),
-                    )
+                    ) + dx;
+                    f(u)
                 })
             })
         })
         .collect::<Vec<_>>();
     let res = radial_mean(&a, &[s, s, s], &[10.0, 10.0, 10.0]);
-    let num = (1.0 + s as f64 / 2.0 * f64::sqrt(3.0)) as usize;
+    let num = res.len();
     let expected = (0..num)
-        .map(|i| i as f64 / num as f64 * p / 2.0 * f64::sqrt(3.0))
+        .map(|i| {
+            let x = i as f64 / (num - 1) as f64 * p * f64::sqrt(3.0) / 2.0 + dx;
+            f(x)
+        })
         .collect::<Vec<_>>();
     // TODO do a proper test instead of print
-    for (i, j) in res.iter().zip(expected.iter()) {
+    for (i, j) in res.iter().map(|r| r.val).zip(expected.iter()) {
         println!("{:.2e} {:.2e} {:2.2}%", i, j, (i - j) / j * 100.0);
     }
 }

@@ -275,8 +275,11 @@ impl Mul<RMean> for f64 {
     }
 }
 
+// FIXME radial_mean: return the position next to the value as it is a lot more precise, linear interpolation is not precise enough
+// FIXME maybe search how to invert cubic-spline, thus the result can be a cubic-spline, which will be inverted during fusion and done again after fusion
+// FIXME or save the position along the value using colon val:pos 3.64:0.25 and plot at the given positions
 // this should be a kernel but there is no real atomic add for double in opencl 1.2
-pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<RMean> {
+pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<f64> {
     let dim_len = dim
         .iter()
         .map(|i| if *i > 0 { 1 } else { 0 })
@@ -326,7 +329,7 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<RMean>
     res[0] = start;
     res[num] = end;
 
-    res
+    res.into_iter().map(|i| i.val).collect()
 }
 
 #[test]
@@ -335,7 +338,7 @@ fn radial_test() {
     let p = 10.0;
     let s2 = s as i32 / 2;
     let dx = 0.01;
-    let f = |x: f64| f64::exp(-x * x) / x;
+    let f = |x: f64| f64::exp(-x / 2.0) / x;
     let a = (0..s as i32)
         .flat_map(move |z| {
             (0..s as i32).flat_map(move |y| {
@@ -359,7 +362,7 @@ fn radial_test() {
         })
         .collect::<Vec<_>>();
     // TODO do a proper test instead of print
-    for (i, j) in res.iter().map(|r| r.val).zip(expected.iter()) {
+    for (i, j) in res.iter().zip(expected.iter()) {
         println!("{:.2e} {:.2e} {:2.2}%", i, j, (i - j) / j * 100.0);
     }
 }

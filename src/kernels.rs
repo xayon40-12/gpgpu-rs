@@ -275,37 +275,31 @@ impl Mul<RMean> for f64 {
     }
 }
 
-// FIXME radial_mean: return the position next to the value as it is a lot more precise, linear interpolation is not precise enough
-// FIXME maybe search how to invert cubic-spline, thus the result can be a cubic-spline, which will be inverted during fusion and done again after fusion
-// FIXME or save the position along the value using colon val:pos 3.64:0.25 and plot at the given positions
-// this should be a kernel but there is no real atomic add for double in opencl 1.2
 pub struct Radial {
     pub pos: f64,
     pub val: f64,
 }
 
 pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial> {
+    let radius = f64::sqrt(phy[0] * phy[0] + phy[1] * phy[1] + phy[2] * phy[2]) / 2.0;
+    let pc = (0..3).map(|i| phy[i] / 2.0).collect::<Vec<_>>();
     let dim_len = dim
         .iter()
         .map(|i| if *i > 0 { 1 } else { 0 })
         .fold(0, |a, i| a + i);
-    let num = (usize::max(dim[0], usize::max(dim[1], dim[2])) as f64 * f64::sqrt(dim_len as f64)
-        / 2.0) as usize;
+    let num =
+        usize::max(dim[0], usize::max(dim[1], dim[2])) as f64 * f64::sqrt(dim_len as f64) / 2.0;
+    let dx = radius / num as f64;
+    let num = num as usize;
     let mut res = vec![RMean::empty(); num + 2];
 
-    let radius = f64::sqrt(phy[0] * phy[0] + phy[1] * phy[1] + phy[2] * phy[2]) / 2.0;
-    let pc = (0..3).map(|i| phy[i] / 2.0).collect::<Vec<_>>();
-
-    //TODO radmean: use a hashmap where key is (abs(x-dim[0]/2)+abs(y-dim[1]/2)+abs(z-dim[2]/2)) and value is a tuple(res,count,(x,y,z))
-    // at the end convert this hashmap to a sorted array per distance by converting (x,y,z) to a distance in fm
-    // then apply res/count for each values
-    // then convert this array to an array of num elements by interpolation
-    let start = RMean::new(
+    res[0] = RMean::new(
         a[dim[0] / 2 + dim[0] * (dim[1] / 2 + dim[1] * dim[2] / 2)],
         1.0,
         0.0,
     );
-    let end = RMean::new(a[0], 1.0, radius);
+    res[num + 1] = RMean::new(a[0], 1.0, radius);
+
     for z in 0..dim[2] {
         for y in 0..dim[1] {
             for x in 0..dim[0] {
@@ -314,8 +308,6 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial
                     .map(|i| [x, y, z][i] as f64 * phy[i] / dim[i] as f64 - pc[i])
                     .collect::<Vec<_>>();
                 let pr = f64::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-                // TODO think about summing spherical portions of cells
-                //let portion = ;
                 let pid = (num as f64 * pr / radius * 0.99999999999999) as usize;
                 res[pid + 1] += RMean::new(a[id], 1.0, pr);
             }
@@ -326,18 +318,6 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial
         res.val /= res.count;
         res.pos /= res.count;
     }
-    /*
-    for i in (1..num).rev() {
-        let pos = radius * i as f64 / num as f64;
-        let mul = (pos - res[i - 1].pos) / (res[i].pos - res[i - 1].pos);
-        res[i] = res[i - 1] + mul * (res[i] - res[i - 1]);
-    }
-    */
-    res[0] = start;
-    res[num + 1] = end;
-
-    let dx = radius / num as f64;
-    println!("dx: {}", dx);
     res.into_iter()
         .map(|i| Radial {
             pos: i.pos + dx,

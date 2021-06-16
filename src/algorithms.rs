@@ -1,13 +1,16 @@
-use crate::{Handler,kernels::{Kernel,SKernel}};
-use crate::Dim::{self,*};
+use crate::descriptors::ConstructorTypes::*;
 use crate::descriptors::KernelArg::*;
+use crate::descriptors::KernelConstructor::*;
 use crate::descriptors::Types::*;
+use crate::Dim::{self, *};
+use crate::DimDir::{self, *};
+use crate::{
+    kernels::{Kernel, SKernel},
+    Handler,
+};
+use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::descriptors::KernelConstructor::*;
-use crate::descriptors::ConstructorTypes::*;
-use std::any::Any;
-use crate::DimDir::{*,self};
 
 pub enum AlgorithmParam<'a> {
     Mut(&'a mut dyn Any),
@@ -17,31 +20,40 @@ pub enum AlgorithmParam<'a> {
 use AlgorithmParam::*;
 
 impl<'a> AlgorithmParam<'a> {
-    pub fn downcast_ref<'b,T: 'static>(&self, error_msg: &'b str) -> &T {
+    pub fn downcast_ref<'b, T: 'static>(&self, error_msg: &'b str) -> &T {
         if let Ref(r) = self {
             r.downcast_ref().expect(error_msg)
         } else {
-            panic!("{}",error_msg)
+            panic!("{}", error_msg)
         }
     }
 
-    pub fn downcast_mut<'b,T: 'static>(&mut self, error_msg: &'b str) -> &mut T {
+    pub fn downcast_mut<'b, T: 'static>(&mut self, error_msg: &'b str) -> &mut T {
         if let Mut(r) = self {
             r.downcast_mut().expect(error_msg)
         } else {
-            panic!("{}",error_msg)
+            panic!("{}", error_msg)
         }
     }
 }
 
 //Fn(handler: &mut Handler, dim: Dim, dim_dir: &[DimDir], buf_names: Vec<String>, other_args: Option<&dyn Any>)
-pub type Callback = Rc<dyn Fn(&mut Handler, Dim, &[DimDir], &[&str], AlgorithmParam) -> crate::Result<Option<Box<dyn Any>>>>;
+pub type Callback = Rc<
+    dyn Fn(
+        &mut Handler,
+        Dim,
+        &[DimDir],
+        &[&str],
+        AlgorithmParam,
+    ) -> crate::Result<Option<Box<dyn Any>>>,
+>;
 
 #[derive(Clone)]
-pub struct Algorithm<'a> { //TODO use one SC for each &'a str
+pub struct Algorithm<'a> {
+    //TODO use one SC for each &'a str
     pub name: &'a str,
     pub callback: Callback,
-    pub needed: Vec<Needed<'a>>
+    pub needed: Vec<Needed<'a>>,
 }
 
 #[derive(Clone)]
@@ -61,20 +73,21 @@ impl<'a> From<&Algorithm<'a>> for SAlgorithm {
     }
 }
 
-#[derive(Clone,Debug)]
-pub enum Needed<'a> { //TODO use one SC for each &'a str
+#[derive(Clone, Debug)]
+pub enum Needed<'a> {
+    //TODO use one SC for each &'a str
     KernelName(&'a str),
     AlgorithmName(&'a str),
-    NewKernel(Kernel<'a>)
+    NewKernel(Kernel<'a>),
 }
-use Needed::*;
 use crate::functions::Needed::*;
+use Needed::*;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum SNeeded {
     KernelName(String),
     AlgorithmName(String),
-    NewKernel(SKernel)
+    NewKernel(SKernel),
 }
 
 impl<'a> From<&Needed<'a>> for SNeeded {
@@ -87,14 +100,14 @@ impl<'a> From<&Needed<'a>> for SNeeded {
     }
 }
 
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Packing {
-    Packed([u32;4]),
-    Unpacked([u32;4]),
+    Packed([u32; 4]),
+    Unpacked([u32; 4]),
 }
 
 impl Packing {
-    pub fn new(size: [u32;4], packed: bool) -> Packing {
+    pub fn new(size: [u32; 4], packed: bool) -> Packing {
         if packed {
             Packing::Packed(size)
         } else {
@@ -103,13 +116,13 @@ impl Packing {
     }
 }
 
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Window {
     pub offset: usize,
     pub len: usize,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct ReduceParam {
     pub vect_dim: u32,
     pub dst_size: Option<Packing>,
@@ -119,12 +132,22 @@ pub struct ReduceParam {
 macro_rules! ifs {
     ($bufs:ident, $alg:expr, $num:literal) => {
         if $bufs.len() != $num {
-            panic!("Algorithm \"{}\" takes {} buffer names, {} given.", $alg, $num, $bufs.len());
+            panic!(
+                "Algorithm \"{}\" takes {} buffer names, {} given.",
+                $alg,
+                $num,
+                $bufs.len()
+            );
         }
     };
     ($bufs:ident, $alg:expr, $min:literal..$max:literal) => {
         if $bufs.len() < $min || $bufs.len() > $max {
-            panic!("Algorithm \"{}\" takes {} buffer names, {} given.", $alg, stringify!($min..$max), $bufs.len());
+            panic!(
+                "Algorithm \"{}\" takes {} buffer names, {} given.",
+                $alg,
+                stringify!($min..$max),
+                $bufs.len()
+            );
         }
     };
 }
@@ -180,7 +203,13 @@ macro_rules! param {
 
 macro_rules! callback_gen {
     ($h:ident, $dim:ident, $dimdir:pat, $bufs:ident, $other:pat, $body:tt) => {
-        Rc::new(|$h: &mut Handler, $dim: Dim, $dimdir: &[DimDir], $bufs: &[&str], $other: AlgorithmParam| $body)
+        Rc::new(
+            |$h: &mut Handler,
+             $dim: Dim,
+             $dimdir: &[DimDir],
+             $bufs: &[&str],
+             $other: AlgorithmParam| $body,
+        )
     };
 }
 
@@ -317,7 +346,7 @@ macro_rules! logreduce {
             match dst_size {
                 Packed(dst_size) =>
                     $h.run_arg("dmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into()),Param("vect_dim",(w as u32).into())])?,
-                Unpacked(dst_size) => 
+                Unpacked(dst_size) =>
                     $h.run_arg("rdmove",dims.into(),&[BufArg(&tmp,"src"),BufArg(&dst,"dst"),Param("size",$Ep_(size.into())),Param("dst_size",dst_size.into()),Param("vect_dim",(w as u32).into())])?,
             }
         } else {
@@ -477,9 +506,8 @@ macro_rules! random {
         key[1] += 0xBB67AE85;
     }
 "
-
     };
-    (philox2x64_10) => { 
+    (philox2x64_10) => {
         "    ulong key = x;
     const uint l = 2;
     const ulong M = 0xD2B74407B1CE6E93;
@@ -512,72 +540,84 @@ macro_rules! random {
 "
     };
     ($name:ident, $more:literal) => {
-        concat!(random!($name),$more)
+        concat!(random!($name), $more)
     };
 }
 
 macro_rules! random_kernels {
     (u64 $name:ident,$type:ident) => {
-        vec![NewKernel(Kernel {
-            name: stringify!($name),
-            args: vec![KCBuffer("src",$type)],
-            src: random!($name),
-            needed: vec![],
-        }),
-        NewKernel(Kernel {
-            name: concat!(stringify!($name),"_unit"),
-            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
-            src: random!($name,"    for(uint i = 0;i<l;i++)
+        vec![
+            NewKernel(Kernel {
+                name: stringify!($name),
+                args: vec![KCBuffer("src", $type)],
+                src: random!($name),
+                needed: vec![],
+            }),
+            NewKernel(Kernel {
+                name: concat!(stringify!($name), "_unit"),
+                args: vec![KCBuffer("src", $type), KCBuffer("dst", CF64)],
+                src: random!(
+                    $name,
+                    "    for(uint i = 0;i<l;i++)
     dst[x*l+i] = (double)(src[x*l+i]>>11)/(1l << 53);"
-            ),
-            needed: vec![],
-        }),
-        NewKernel(Kernel {
-            name: concat!(stringify!($name),"_normal"),
-            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
-            src: random!($name,"    for(uint i = 0;i<l;i+=2) {
+                ),
+                needed: vec![],
+            }),
+            NewKernel(Kernel {
+                name: concat!(stringify!($name), "_normal"),
+                args: vec![KCBuffer("src", $type), KCBuffer("dst", CF64)],
+                src: random!(
+                    $name,
+                    "    for(uint i = 0;i<l;i+=2) {
     double u1 = (double)(src[x*l+i]>>11)/(1l << 53);
     double u2 = (double)(src[x*l+i+1]>>11)/(1l << 53);
     dst[x*l+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
     dst[x*l+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
 }"
-            ),
-            needed: vec![],
-        })]
+                ),
+                needed: vec![],
+            }),
+        ]
     };
     (u32 $name:ident,$type:ident) => {
-        vec![NewKernel(Kernel {
-            name: stringify!($name),
-            args: vec![KCBuffer("src",$type)],
-            src: random!($name),
-            needed: vec![],
-        }),
-        NewKernel(Kernel {
-            name: concat!(stringify!($name),"_unit"),
-            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
-            src: random!($name,"    const uint l2 = l/2;
+        vec![
+            NewKernel(Kernel {
+                name: stringify!($name),
+                args: vec![KCBuffer("src", $type)],
+                src: random!($name),
+                needed: vec![],
+            }),
+            NewKernel(Kernel {
+                name: concat!(stringify!($name), "_unit"),
+                args: vec![KCBuffer("src", $type), KCBuffer("dst", CF64)],
+                src: random!(
+                    $name,
+                    "    const uint l2 = l/2;
     for(uint i = 0;i<l2;i++)
         dst[x*l2+i] = (double)(((((ulong)src[x*l+i*2])<<32)+src[x*l+i*2+1])>>11)/(1l << 53);"
-            ),
-            needed: vec![],
-        }),
-        NewKernel(Kernel {
-            name: concat!(stringify!($name),"_normal"),
-            args: vec![KCBuffer("src",$type),KCBuffer("dst",CF64)],
-            src: random!($name,"    const uint l2 = l/2;
+                ),
+                needed: vec![],
+            }),
+            NewKernel(Kernel {
+                name: concat!(stringify!($name), "_normal"),
+                args: vec![KCBuffer("src", $type), KCBuffer("dst", CF64)],
+                src: random!(
+                    $name,
+                    "    const uint l2 = l/2;
     for(uint i = 0;i<l2;i+=2) {
         double u1 = (double)(((((ulong)src[x*l+i])<<32)+src[x*l+i+1])>>11)/(1l << 53);
         double u2 = (double)(((((ulong)src[x*l+i+2])<<32)+src[x*l+i+3])>>11)/(1l << 53);
         dst[x*l2+i] = sqrt(-2*log(u1))*cos(2*M_PI*u2);
         dst[x*l2+i+1] = sqrt(-2*log(u1))*sin(2*M_PI*u2);
     }"
-            ),
-            needed: vec![],
-        })]
+                ),
+                needed: vec![],
+            }),
+        ]
     };
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum RandomType {
     Normal,
     Uniform,
@@ -630,14 +670,14 @@ macro_rules! gen_random {
     };
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct MomentsParam {
     pub num: u32,
     pub vect_dim: u32,
     pub packed: bool,
 }
 
-pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
+pub fn algorithms() -> HashMap<&'static str, Algorithm<'static>> {
     vec![
         // sum each elements.
         algo_gen!(logreduce "sum",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[id]+src[idp];"),
@@ -649,6 +689,12 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
         algo_gen!(center "correlation",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[id]*src[idp];"),
         // Compute the FFT
         algo_gen!(log "FFT",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[ida] + c_times(src[idb],c_exp(-2*M_PI*u/(1<<i)));"),
+        // sort comparing first value of f64_2
+        algo_gen!(log "sortByFirst",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"if(src[ida].x <= src[idb].x) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME test depends on position of id for the left on it is <= and for the right one it is >
+        // sort comparing second value of f64_2
+        algo_gen!(log "sortBySecond",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"if(src[ida].y <= src[idb].y) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME same
+        // sort
+        algo_gen!(log "sort",CF64|F64|F64 CU32|U32 CU32_4|U32_4,"if(src[ida] <= src[idb]) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME same
         // Compute moments. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
         // size x (where x and y are the first and second dimensions).
         Algorithm {
@@ -709,24 +755,24 @@ pub fn algorithms() -> HashMap<&'static str,Algorithm<'static>> {
 
 #[allow(non_snake_case)]
 fn C(n: usize, k: usize) -> usize {
-    if k==0 || k==n {
+    if k == 0 || k == n {
         1
     } else {
-        C(n-1,k-1) + C(n-1,k)
+        C(n - 1, k - 1) + C(n - 1, k)
     }
 }
 
 // Only for D1
 pub fn moments_to_cumulants(moments: &[f64], w: usize) -> Vec<f64> {
-    let len = moments.len()/w;
-    let mut cumulants = vec![0.0; len*w];
+    let len = moments.len() / w;
+    let mut cumulants = vec![0.0; len * w];
     for i in 0..w {
         for n in 0..len {
             let mut m = 0.0;
             for k in 0..n {
-                m += C(n,k) as f64*cumulants[i+w*k]*moments[i+w*(n-k-1)];
+                m += C(n, k) as f64 * cumulants[i + w * k] * moments[i + w * (n - k - 1)];
             }
-            cumulants[i+w*n] = moments[i+w*n] - m;
+            cumulants[i + w * n] = moments[i + w * n] - m;
         }
     }
 

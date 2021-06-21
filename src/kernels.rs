@@ -252,9 +252,11 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial
         })
         .collect();
     // sort by distance
+    // FIXME consider that there might be a dimension of 0 phy size which means that res must be chuncked and each chunk sorted separatly
     res.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
 
     // compact by same distance
+    // FIXME compact should be chunked as well
     let mut j = 0;
     let mut counts = vec![1];
     for i in 1..a.len() {

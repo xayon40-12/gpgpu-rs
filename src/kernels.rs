@@ -280,7 +280,7 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial
 
 #[test]
 fn radial_test() {
-    let s = 10usize;
+    let s = 100usize;
     let p = 10.0;
     let s2 = s as i32 / 2;
     let dx = p / s as f64;
@@ -302,10 +302,11 @@ fn radial_test() {
     let res = radial_mean(&a, &[s, s, s], &[p, p, p]);
 
     let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
+    println!("size: {}", res.len());
     for i in &res {
         let v = i.val;
         let e = f(i.pos + dx);
-        assert!(cmp(e, v, 14));
+        assert!(cmp(e, v, 13), "diff: 10^{}", ((e - v) / v).log10());
         //println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
     }
 }

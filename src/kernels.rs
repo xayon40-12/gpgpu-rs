@@ -220,115 +220,67 @@ pub fn kernels() -> HashMap<&'static str, Kernel<'static>> {
         ].into_iter().map(|k| (k.name,k)).collect()
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct RMean {
-    pub val: f64,
-    pub count: f64,
-    pub pos: f64,
-}
-impl RMean {
-    fn new(val: f64, count: f64, pos: f64) -> RMean {
-        RMean { val, count, pos }
-    }
-    fn empty() -> RMean {
-        RMean {
-            val: 0.0,
-            count: 0.0,
-            pos: 0.0,
-        }
-    }
-}
-use std::ops::{Add, AddAssign, Mul, Sub};
-impl Add for RMean {
-    type Output = RMean;
-    fn add(self, rhs: RMean) -> RMean {
-        RMean {
-            val: self.val + rhs.val,
-            count: self.count + rhs.count,
-            pos: self.pos + rhs.pos,
-        }
-    }
-}
-impl Sub for RMean {
-    type Output = RMean;
-    fn sub(self, rhs: RMean) -> RMean {
-        RMean {
-            val: self.val - rhs.val,
-            count: self.count - rhs.count,
-            pos: self.pos - rhs.pos,
-        }
-    }
-}
-impl AddAssign for RMean {
-    fn add_assign(&mut self, rhs: RMean) {
-        *self = *self + rhs;
-    }
-}
-impl Mul<RMean> for f64 {
-    type Output = RMean;
-    fn mul(self, a: RMean) -> RMean {
-        RMean {
-            val: self * a.val,
-            count: self * a.count,
-            pos: self * a.pos,
-        }
-    }
-}
-
+#[derive(Debug, Clone)]
 pub struct Radial {
     pub pos: f64,
     pub val: f64,
 }
 
 pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial> {
-    let radius = f64::sqrt(phy[0] * phy[0] + phy[1] * phy[1] + phy[2] * phy[2]) / 2.0;
-    let pc = (0..3).map(|i| phy[i] / 2.0).collect::<Vec<_>>();
-    let dim_len = dim
+    let dm = [dim[0] / 2, dim[1] / 2, dim[2] / 2];
+    let dist = |p: &[usize], i: usize| {
+        ((usize::max(p[i], dm[i]) - usize::min(p[i], dm[i])) as f64 * phy[i] / dim[i] as f64)
+            .powf(2.0)
+    };
+    let pos = |i: usize| {
+        let x = i % dim[0];
+        let y = (i / dim[0]) % dim[1];
+        let z = (i / dim[0] / dim[1]) % dim[2];
+        let p = [x, y, z];
+        let d = (dist(&p, 0) + dist(&p, 1) + dist(&p, 2)).sqrt();
+        //println!("{},{},{}, {}", x, y, z, d);
+
+        d
+    };
+    // vec with distance to center
+    let mut res: Vec<Radial> = a
         .iter()
-        .map(|i| if *i > 0 { 1 } else { 0 })
-        .fold(0, |a, i| a + i);
-    let num =
-        usize::max(dim[0], usize::max(dim[1], dim[2])) as f64 * f64::sqrt(dim_len as f64) / 2.0;
-    let dx = radius / num as f64;
-    let num = num as usize;
-    let mut res = vec![RMean::empty(); num + 2];
+        .enumerate()
+        .map(|(i, v)| Radial {
+            pos: pos(i),
+            val: *v,
+        })
+        .collect();
+    // sort by distance
+    res.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
 
-    res[0] = RMean::new(
-        a[dim[0] / 2 + dim[0] * (dim[1] / 2 + dim[1] * dim[2] / 2)],
-        1.0,
-        0.0,
-    );
-    res[num + 1] = RMean::new(a[0], 1.0, radius);
-
-    for z in 0..dim[2] {
-        for y in 0..dim[1] {
-            for x in 0..dim[0] {
-                let id = x + dim[0] * (y + dim[1] * z);
-                let p = (0..3)
-                    .map(|i| [x, y, z][i] as f64 * phy[i] / dim[i] as f64 - pc[i])
-                    .collect::<Vec<_>>();
-                let pr = f64::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-                let pid = (num as f64 * pr / radius * 0.99999999999999) as usize;
-                res[pid + 1] += RMean::new(a[id], 1.0, pr);
-            }
+    // compact by same distance
+    let mut j = 0;
+    let mut counts = vec![1];
+    for i in 1..a.len() {
+        if res[i].pos == res[j].pos {
+            counts[j] += 1;
+            res[j].val += res[i].val;
+        } else {
+            j += 1;
+            counts.push(1);
+            res[j] = res[i].clone();
         }
     }
 
-    for res in res.iter_mut() {
-        res.val /= res.count;
-        res.pos /= res.count;
+    // truncate so that the vector have a lenght corresponding to only the compacted elements
+    res.truncate(j + 1);
+    // obtaining the mean
+    for i in 0..=j {
+        res[i].val /= counts[i] as f64;
     }
-    res.into_iter()
-        .map(|i| Radial {
-            pos: i.pos + dx,
-            val: i.val,
-        })
-        .collect()
+
+    res
 }
 
 #[test]
 fn radial_test() {
-    let s = 100usize;
+    let s = 10usize;
     let p = 10.0;
     let s2 = s as i32 / 2;
     let dx = p / s as f64;
@@ -347,11 +299,13 @@ fn radial_test() {
             })
         })
         .collect::<Vec<_>>();
-    let res = radial_mean(&a, &[s, s, s], &[10.0, 10.0, 10.0]);
-    // TODO do a proper test instead of print
+    let res = radial_mean(&a, &[s, s, s], &[p, p, p]);
+
+    let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
     for i in &res {
         let v = i.val;
-        let e = f(i.pos);
-        println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
+        let e = f(i.pos + dx);
+        assert!(cmp(e, v, 14));
+        //println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
     }
 }

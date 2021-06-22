@@ -220,16 +220,32 @@ pub fn kernels() -> HashMap<&'static str, Kernel<'static>> {
         ].into_iter().map(|k| (k.name,k)).collect()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Radial {
     pub pos: f64,
     pub val: f64,
 }
 
-pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial> {
+pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec<Radial>> {
+    weight
+        .iter()
+        .for_each(|w| assert!(*w >= 0.0, "Each weight must be positive."));
+    assert!(
+        dim[0] > 0 && weight[0] > 0.0,
+        "first dim and weight must be non zero"
+    );
+    assert!(
+        (dim[1] == 0 && dim[2] == 0) || (dim[1] > 0),
+        "Second dimension cannot be empty if third is not."
+    );
+    assert!(
+        (weight[1] == 0.0 && dim[2] == 0 && weight[2] == 0.0) || weight[1] != 0.0,
+        "Only the last non empty dimension can have a zero weight to mean the result is chunked."
+    );
+
     let dm = [dim[0] / 2, dim[1] / 2, dim[2] / 2];
     let dist = |p: &[usize], i: usize| {
-        ((usize::max(p[i], dm[i]) - usize::min(p[i], dm[i])) as f64 * phy[i] / dim[i] as f64)
+        ((usize::max(p[i], dm[i]) - usize::min(p[i], dm[i])) as f64 * weight[i] / dim[i] as f64)
             .powf(2.0)
     };
     let pos = |i: usize| {
@@ -243,38 +259,45 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], phy: &[f64; 3]) -> Vec<Radial
         d
     };
     // vec with distance to center
-    let mut res: Vec<Radial> = a
+    let n = dim.iter().zip(weight.iter()).fold(
+        1,
+        |acc, (a, b)| if *b == 0.0 || *a == 0 { 1 } else { *a } * acc,
+    );
+    let mut res: Vec<Vec<Radial>> = a
         .iter()
         .enumerate()
         .map(|(i, v)| Radial {
             pos: pos(i),
             val: *v,
         })
+        .collect::<Vec<_>>()
+        .chunks(n)
+        .map(|i| i.to_vec())
         .collect();
     // sort by distance
-    // FIXME consider that there might be a dimension of 0 phy size which means that res must be chuncked and each chunk sorted separatly
-    res.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
+    res.iter_mut()
+        .for_each(|i| i.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap()));
 
     // compact by same distance
-    // FIXME compact should be chunked as well
     let mut j = 0;
     let mut counts = vec![1];
-    for i in 1..a.len() {
-        if res[i].pos == res[j].pos {
+    for i in 1..n {
+        if res[0][i].pos == res[0][j].pos {
             counts[j] += 1;
-            res[j].val += res[i].val;
+            res.iter_mut().for_each(|res| res[j].val += res[i].val);
         } else {
             j += 1;
             counts.push(1);
-            res[j] = res[i].clone();
+            res.iter_mut().for_each(|res| res[j] = res[i]);
         }
     }
 
     // truncate so that the vector have a lenght corresponding to only the compacted elements
-    res.truncate(j + 1);
+    res.iter_mut().for_each(|res| res.truncate(j + 1));
     // obtaining the mean
     for i in 0..=j {
-        res[i].val /= counts[i] as f64;
+        res.iter_mut()
+            .for_each(|res| res[i].val /= counts[i] as f64);
     }
 
     res
@@ -301,14 +324,19 @@ fn radial_test() {
             })
         })
         .collect::<Vec<_>>();
-    let res = radial_mean(&a, &[s, s, s], &[p, p, p]);
+    let res = radial_mean(&a, &[s, s, s], &[p, p, 0.0]);
 
     let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
-    println!("size: {}", res.len());
+    assert!(res.len() == s, "There should be {} chunks", s);
+    let j = res[0].len();
+    res.iter()
+        .for_each(|r| assert!(r.len() == j, "Each chunk should have {}", j));
     for i in &res {
-        let v = i.val;
-        let e = f(i.pos + dx);
-        assert!(cmp(e, v, 13), "diff: 10^{}", ((e - v) / v).log10());
-        //println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
+        for r in i {
+            let v = r.val;
+            let e = f(r.pos + dx);
+            assert!(cmp(e, v, 13), "diff: 10^{}", ((e - v) / v).log10());
+            //println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
+        }
     }
 }

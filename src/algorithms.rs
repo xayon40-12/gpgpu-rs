@@ -689,12 +689,6 @@ pub fn algorithms() -> HashMap<&'static str, Algorithm<'static>> {
         algo_gen!(center "correlation",CF64|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[id]*src[idp];"),
         // Compute the FFT
         algo_gen!(log "FFT",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"dst[id] = src[ida] + c_times(src[idb],c_exp(-2*M_PI*u/(1<<i)));"),
-        // sort comparing first value of f64_2
-        algo_gen!(log "sortByFirst",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"if(src[ida].x <= src[idb].x) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME test depends on position of id for the left on it is <= and for the right one it is >
-        // sort comparing second value of f64_2
-        algo_gen!(log "sortBySecond",CF64_2|F64_2|F64 CU32|U32 CU32_4|U32_4,"if(src[ida].y <= src[idb].y) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME same
-        // sort
-        algo_gen!(log "sort",CF64|F64|F64 CU32|U32 CU32_4|U32_4,"if(src[ida] <= src[idb]) { dst[id] = src[ida]; } else { dst[id] = src[idb]; }"), //FIXME same
         // Compute moments. With D1 apply on whole buffer, with D2 apply on all y sub-buffers of
         // size x (where x and y are the first and second dimensions).
         Algorithm {

@@ -230,39 +230,31 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec
     weight
         .iter()
         .for_each(|w| assert!(*w >= 0.0, "Each weight must be positive."));
+    dim.iter()
+        .for_each(|d| assert!(*d >= 1, "Each dim must be at least 1."));
+    assert!(weight[0] > 0.0, "first weight must be non zero");
     assert!(
-        dim[0] > 0 && weight[0] > 0.0,
-        "first dim and weight must be non zero"
-    );
-    assert!(
-        (dim[1] == 0 && dim[2] == 0) || (dim[1] > 0),
-        "Second dimension cannot be empty if third is not."
-    );
-    assert!(
-        (weight[1] == 0.0 && dim[2] == 0 && weight[2] == 0.0) || weight[1] != 0.0,
+        (weight[1] == 0.0 && weight[2] == 0.0) || weight[1] != 0.0,
         "Only the last non empty dimension can have a zero weight to mean the result is chunked."
     );
 
     let dm = [dim[0] / 2, dim[1] / 2, dim[2] / 2];
     let dist = |p: &[usize], i: usize| {
-        ((usize::max(p[i], dm[i]) - usize::min(p[i], dm[i])) as f64 * weight[i] / dim[i] as f64)
-            .powf(2.0)
+        ((p[i] as f64 - dm[i] as f64) * weight[i] / dim[i] as f64).powf(2.0)
     };
     let pos = |i: usize| {
         let x = i % dim[0];
         let y = (i / dim[0]) % dim[1];
         let z = (i / dim[0] / dim[1]) % dim[2];
         let p = [x, y, z];
-        let d = (dist(&p, 0) + dist(&p, 1) + dist(&p, 2)).sqrt();
-        //println!("{},{},{}, {}", x, y, z, d);
-
+        let d = (0..3).fold(0.0, |acc, i| acc + dist(&p, i)).sqrt();
         d
     };
     // vec with distance to center
-    let n = dim.iter().zip(weight.iter()).fold(
-        1,
-        |acc, (a, b)| if *b == 0.0 || *a == 0 { 1 } else { *a } * acc,
-    );
+    let n = dim
+        .iter()
+        .zip(weight.iter())
+        .fold(1, |acc, (a, b)| if *b == 0.0 { 1 } else { *a } * acc);
     let mut res: Vec<Vec<Radial>> = a
         .iter()
         .enumerate()
@@ -295,39 +287,45 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec
     // truncate so that the vector have a lenght corresponding to only the compacted elements
     res.iter_mut().for_each(|res| res.truncate(j + 1));
     // obtaining the mean
-    for i in 0..=j {
-        res.iter_mut()
-            .for_each(|res| res[i].val /= counts[i] as f64);
-    }
+    res.iter_mut().for_each(|res| {
+        for i in 0..=j {
+            res[i].val /= counts[i] as f64
+        }
+    });
 
     res
 }
 
 #[test]
 fn radial_test() {
-    let s = 100usize;
-    let p = 10.0;
-    let s2 = s as i32 / 2;
-    let dx = p / s as f64;
+    let s = [100, 100, 100];
+    let p = [10.0, 10.0, 0.0];
+    let s2 = s.iter().map(|i| *i as i32 / 2).collect::<Vec<_>>();
+    let s2 = &s2;
+    let dx = s
+        .iter()
+        .zip(p.iter())
+        .fold(0.0, |acc, (s, p)| acc + (*p / *s as f64).powf(2.0))
+        .sqrt();
     let f = |x: f64| f64::exp(-x / 2.0) / x;
-    let a = (0..s as i32)
+    let a = (0..s[0] as i32)
         .flat_map(move |z| {
-            (0..s as i32).flat_map(move |y| {
-                (0..s as i32).map(move |x| {
-                    let u = f64::sqrt(
-                        ((x - s2) * (x - s2) + (y - s2) * (y - s2) + (z - s2) * (z - s2)) as f64
-                            / (s * s) as f64
-                            * (p * p),
-                    ) + dx;
-                    f(u)
+            (0..s[1] as i32).flat_map(move |y| {
+                (0..s[2] as i32).map(move |x| {
+                    let u = (0..3)
+                        .fold(0.0, |acc, i| {
+                            acc + ((([x, y, z][i] - s2[i]) as f64 * p[i] / s[i] as f64).powf(2.0))
+                        })
+                        .sqrt();
+                    f(u + dx)
                 })
             })
         })
         .collect::<Vec<_>>();
-    let res = radial_mean(&a, &[s, s, s], &[p, p, 0.0]);
+    let res = radial_mean(&a, &s, &p);
 
     let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
-    assert!(res.len() == s, "There should be {} chunks", s);
+    assert!(res.len() == s[2], "There should be {} chunks", s[2]);
     let j = res[0].len();
     res.iter()
         .for_each(|r| assert!(r.len() == j, "Each chunk should have {}", j));
@@ -335,8 +333,14 @@ fn radial_test() {
         for r in i {
             let v = r.val;
             let e = f(r.pos + dx);
-            assert!(cmp(e, v, 13), "diff: 10^{}", ((e - v) / v).log10());
-            //println!("{:.2e} {:.2e} {:2.2}%", v, e, (v - e) / e * 100.0);
+            assert!(
+                cmp(e, v, 13),
+                "\ndiff: 10^{}\nv: {}\ne :{}\npos: {}\n",
+                ((e - v) / v).log10(),
+                v,
+                e,
+                r.pos
+            );
         }
     }
 }

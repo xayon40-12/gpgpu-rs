@@ -44,6 +44,18 @@ Func: LexerComp = {
                 }
           })
     },
+    <d:"KT(x|y|z|xy|xz|yz|xyz)"> "[]" <mut eigenvalues:(<Expr> ",")*> <end:Expr> "]" <v:Term> => {
+        eigenvalues.push(end);
+        let dirs = d[2..].chars().map(|c| match c {
+            'x' => DimDir::X,
+            'y' => DimDir::Y,
+            'z' => DimDir::Z,
+            a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
+        }).collect::<Vec<_>>();
+        compact(eigenvalues).fuse_apply(|eigenvalues,_|
+            v.apply(|v| kt(v, eigenvalues, dirs))
+        )
+    },
     <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).apply(|i| func(name, i))},
     <d:r"#[<>]?x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
         let (start,n,dirs) = if d.len() > 1 {

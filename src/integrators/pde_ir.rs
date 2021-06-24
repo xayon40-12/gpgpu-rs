@@ -343,6 +343,10 @@ impl SPDETokens {
             }
         }
     }
+
+    fn apply_kt(self, eigs: Vec<SPDETokens>, dirs: Vec<DimDir>) -> SPDETokens {
+        panic!("kt not implemented") // FIXME implement KT
+    }
 }
 
 pub mod ir_helper {
@@ -374,6 +378,11 @@ pub mod ir_helper {
 
     pub fn diff<T: Into<SPDETokens>, U: Into<DiffDir>>(a: T, d: U) -> SPDETokens {
         a.into().apply_diff(d.into())
+    }
+
+    pub fn kt<T: Into<SPDETokens>>(a: T, eigs: Vec<T>, d: Vec<DimDir>) -> SPDETokens {
+        a.into()
+            .apply_kt(eigs.into_iter().map(|i| i.into()).collect::<Vec<_>>(), d)
     }
 
     #[macro_export]

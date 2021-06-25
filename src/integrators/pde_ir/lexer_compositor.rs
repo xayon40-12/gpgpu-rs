@@ -16,6 +16,12 @@ impl LexerComp {
             funs: self.funs,
         }
     }
+
+    pub fn fuse_apply<T: FnOnce(SPDETokens, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
+        let mut res = f(self.token, self.funs.len());
+        res.funs.append(&mut self.funs);
+        res
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

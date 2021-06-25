@@ -1,4 +1,5 @@
 pub use crate::dim::DimDir;
+pub mod kt_scheme;
 pub mod lexer_compositor;
 use serde::{Deserialize, Serialize};
 //use decorum::R64;
@@ -260,26 +261,32 @@ impl SPDETokens {
         }
     }
 
-    fn apply_idx(self, idx: &[i32; 4]) -> Self {
+    fn apply_indexable<F: Fn(Indexable) -> SPDETokens + Copy>(self, f: F) -> Self {
         use SPDETokens::*;
-        macro_rules! applyidx{
+        macro_rules! apply{
             ($a:ident $op:tt $b:ident) => {
-                $b.into_iter().fold($a.apply_idx(idx),|u,v| u $op v.apply_idx(idx))
+                $b.into_iter().fold($a.apply_indexable(f),|u,v| u $op v.apply_indexable(f))
             };
         }
         match self {
-            Add(a, b) => applyidx!(a + b),
-            Sub(a, b) => applyidx!(a - b),
-            Mul(a, b) => applyidx!(a * b),
-            Div(a, b) => applyidx!(a / b),
+            Add(a, b) => apply!(a + b),
+            Sub(a, b) => apply!(a - b),
+            Mul(a, b) => apply!(a * b),
+            Div(a, b) => apply!(a / b),
             Func(n, a) => Func(
                 n,
-                a.into_iter().map(|i| i.apply_idx(idx)).collect::<Vec<_>>(),
+                a.into_iter()
+                    .map(|i| i.apply_indexable(f))
+                    .collect::<Vec<_>>(),
             ),
-            Indx(a) => Indx(a.apply_idx(idx)),
+            Indx(a) => f(a),
             _ => self,
         }
         .into()
+    }
+
+    fn apply_idx(self, idx: &[i32; 4]) -> Self {
+        self.apply_indexable(|s| SPDETokens::Indx(s.apply_idx(idx)))
     }
 
     // WARNING: diff are considered to be multiplied by the inverse of dx: (f(x+1)-f(x))*ivdx
@@ -343,10 +350,6 @@ impl SPDETokens {
             }
         }
     }
-
-    fn apply_kt(self, eigs: Vec<SPDETokens>, dirs: Vec<DimDir>) -> SPDETokens {
-        panic!("kt not implemented") // FIXME implement KT
-    }
 }
 
 pub mod ir_helper {
@@ -380,9 +383,18 @@ pub mod ir_helper {
         a.into().apply_diff(d.into())
     }
 
-    pub fn kt<T: Into<SPDETokens>>(a: T, eigs: Vec<T>, d: Vec<DimDir>) -> SPDETokens {
-        a.into()
-            .apply_kt(eigs.into_iter().map(|i| i.into()).collect::<Vec<_>>(), d)
+    pub fn kt<T: Into<SPDETokens>>(u: T, fu: T, eigs: Vec<T>, mut dirs: Vec<DimDir>) -> SPDETokens {
+        use kt_scheme::*;
+        let u = u.into();
+        let fu = fu.into();
+        let eigs = eigs.into_iter().map(|i| i.into()).collect::<Vec<_>>();
+        let fst = dirs
+            .pop()
+            .expect("There must be at least one direction given to apply KT cheme.");
+        dirs.iter()
+            .fold(kt(&u, &fu, &eigs, fst as usize), |acc, i| {
+                acc + kt(&u, &fu, &eigs, *i as usize)
+            })
     }
 
     #[macro_export]

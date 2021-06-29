@@ -2,7 +2,7 @@ use std::str::FromStr;
 use crate::integrators::pde_ir::{DiffDir::*,DimDir,ir_helper::*,lexer_compositor::*};
 use crate::functions::fix_newton;
 
-grammar(vars: &[DPDE], fun_len: usize, gd: usize); // (var name, bourndary function name, dim)
+grammar(vars: &[DPDE], current_var: &Option<Indexable>, fun_len: usize, gd: usize); // (var name, bourndary function name, dim)
 
 pub Expr: LexerComp = {
     <l:Expr> "+" <r:Factor> => l + r,
@@ -44,7 +44,7 @@ Func: LexerComp = {
                 }
           })
     },
-    <d:"KT(x|y|z|xy|xz|yz|xyz)"> "[" <name:Symb> ";" <mut eigenvalues:(<Expr> ",")*> <end:Expr> "]" <v:Term> => {
+    <d:"KTx?y?z?"> "[" <name:(<Symb> ";")?> <mut eigenvalues:(<Expr> ",")*> <end:Expr> "]" <v:Term> => {
         eigenvalues.push(end);
         let dirs = d[2..].chars().map(|c| match c {
             'x' => DimDir::X,
@@ -52,7 +52,7 @@ Func: LexerComp = {
             'z' => DimDir::Z,
             a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
         }).collect::<Vec<_>>();
-        name.fuse_apply(|name,_|
+        name.unwrap_or(Indx(current_var.clone().expect("KT call must be given the name of the variable it operate on if it is no in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)")).into()).fuse_apply(|name,_|
         compact(eigenvalues).fuse_apply(|eigenvalues,_|
             v.apply(|v| kt(name, v, eigenvalues, dirs))
         ))

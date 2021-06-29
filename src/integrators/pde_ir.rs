@@ -383,18 +383,31 @@ pub mod ir_helper {
         a.into().apply_diff(d.into())
     }
 
-    pub fn kt<T: Into<SPDETokens>>(u: T, fu: T, eigs: Vec<T>, mut dirs: Vec<DimDir>) -> SPDETokens {
+    pub fn kt<T: Into<SPDETokens>>(u: T, fu: T, eigs: Vec<T>, dirs: Vec<DimDir>) -> SPDETokens {
         use kt_scheme::*;
         let u = u.into();
+        let dim = match &u {
+            SPDETokens::Indx(u) => u.dim,
+            _ => panic!(
+                "first parameter of pde_id::ir_helper::kt function must be an SPDETokens::Indx."
+            ),
+        };
         let fu = fu.into();
         let eigs = eigs.into_iter().map(|i| i.into()).collect::<Vec<_>>();
-        let fst = dirs
-            .pop()
-            .expect("There must be at least one direction given to apply KT cheme.");
-        dirs.iter()
-            .fold(kt(&u, &fu, &eigs, fst as usize), |acc, i| {
-                acc + kt(&u, &fu, &eigs, *i as usize)
-            })
+        let dirs = if dirs.len() == 0 {
+            (0..dim).map(|i| i.into()).collect::<Vec<_>>()
+        } else {
+            dirs
+        };
+        let mut res = dirs
+            .into_iter()
+            .map(|i| kt(&u, &fu, &eigs, i as usize))
+            .collect::<Vec<_>>();
+        if res.len() == 1 {
+            res.pop().unwrap()
+        } else {
+            Vect(res)
+        }
     }
 
     #[macro_export]

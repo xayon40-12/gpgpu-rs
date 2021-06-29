@@ -1,4 +1,5 @@
 use crate::functions::SFunction;
+use crate::integrators::pde_ir::Indexable;
 #[allow(unused_imports)]
 pub use crate::integrators::{
     pde_ir::{ir_helper::DPDE, SPDETokens},
@@ -20,11 +21,13 @@ pub struct Parsed {
 /// 'math' is the mathematical expression to parse.
 pub fn parse<'a>(
     context: &[DPDE],
+    current_var: &Option<Indexable>,
     fun_len: usize,
     global_dim: usize,
     math: &'a str,
 ) -> Result<Parsed, lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'a>, &'a str>> {
-    let parsed = pde_lexer::ExprParser::new().parse(context, fun_len, global_dim, math)?;
+    let parsed =
+        pde_lexer::ExprParser::new().parse(context, current_var, fun_len, global_dim, math)?;
     Ok(Parsed {
         ocl: parsed.token.to_ocl(),
         funs: parsed.funs,

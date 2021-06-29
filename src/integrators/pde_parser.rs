@@ -1,5 +1,4 @@
 use crate::functions::SFunction;
-use crate::integrators::pde_ir::Indexable;
 #[allow(unused_imports)]
 pub use crate::integrators::{
     pde_ir::{ir_helper::DPDE, SPDETokens},
@@ -21,7 +20,7 @@ pub struct Parsed {
 /// 'math' is the mathematical expression to parse.
 pub fn parse<'a>(
     context: &[DPDE],
-    current_var: &Option<Indexable>,
+    current_var: &Option<SPDETokens>,
     fun_len: usize,
     global_dim: usize,
     math: &'a str,

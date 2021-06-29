@@ -220,13 +220,19 @@ pub fn kernels() -> HashMap<&'static str, Kernel<'static>> {
         ].into_iter().map(|k| (k.name,k)).collect()
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Radial {
     pub pos: f64,
-    pub val: f64,
+    pub vals: Vec<f64>,
 }
 
-pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec<Radial>> {
+pub fn radial(
+    a: &Vec<f64>,
+    vec_dim: usize,
+    dim: &[usize; 3],
+    weight: &[f64; 3],
+    mean: bool,
+) -> Vec<Vec<Radial>> {
     weight
         .iter()
         .for_each(|w| assert!(*w >= 0.0, "Each weight must be positive."));
@@ -256,11 +262,11 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec
         .zip(weight.iter())
         .fold(1, |acc, (a, b)| if *b == 0.0 { 1 } else { *a } * acc);
     let mut res: Vec<Vec<Radial>> = a
-        .iter()
+        .chunks(vec_dim)
         .enumerate()
         .map(|(i, v)| Radial {
             pos: pos(i),
-            val: *v,
+            vals: (*v).to_vec(),
         })
         .collect::<Vec<_>>()
         .chunks(n)
@@ -276,22 +282,30 @@ pub fn radial_mean(a: &Vec<f64>, dim: &[usize; 3], weight: &[f64; 3]) -> Vec<Vec
     for i in 1..n {
         if res[0][i].pos == res[0][j].pos {
             counts[j] += 1;
-            res.iter_mut().for_each(|res| res[j].val += res[i].val);
+            res.iter_mut().for_each(|res| {
+                for vd in 0..vec_dim {
+                    res[j].vals[vd] += res[i].vals[vd]
+                }
+            });
         } else {
             j += 1;
             counts.push(1);
-            res.iter_mut().for_each(|res| res[j] = res[i]);
+            res.iter_mut().for_each(|res| res[j] = res[i].clone());
         }
     }
 
     // truncate so that the vector have a lenght corresponding to only the compacted elements
     res.iter_mut().for_each(|res| res.truncate(j + 1));
     // obtaining the mean
-    res.iter_mut().for_each(|res| {
-        for i in 0..=j {
-            res[i].val /= counts[i] as f64
-        }
-    });
+    if mean {
+        res.iter_mut().for_each(|res| {
+            for i in 0..=j {
+                for vd in 0..vec_dim {
+                    res[i].vals[vd] /= counts[i] as f64
+                }
+            }
+        });
+    }
 
     res
 }
@@ -322,7 +336,7 @@ fn radial_test() {
             })
         })
         .collect::<Vec<_>>();
-    let res = radial_mean(&a, &s, &p);
+    let res = radial(&a, 1, &s, &p, true);
 
     let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
     assert!(res.len() == s[2], "There should be {} chunks", s[2]);
@@ -331,7 +345,7 @@ fn radial_test() {
         .for_each(|r| assert!(r.len() == j, "Each chunk should have {}", j));
     for i in &res {
         for r in i {
-            let v = r.val;
+            let v = r.vals[0];
             let e = f(r.pos + dx);
             assert!(
                 cmp(e, v, 13),

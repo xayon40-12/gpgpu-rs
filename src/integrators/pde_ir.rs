@@ -386,12 +386,16 @@ pub mod ir_helper {
     pub fn kt<T: Into<SPDETokens>>(u: T, fu: T, eigs: Vec<T>, dirs: Vec<DimDir>) -> SPDETokens {
         use kt_scheme::*;
         let u = u.into();
+        let err = "first parameter of pde_id::ir_helper::kt function must be an SPDETokens::Indx.";
         let dim = match &u {
-            SPDETokens::Indx(u) => u.dim,
-            _ => panic!(
-                "first parameter of pde_id::ir_helper::kt function must be an SPDETokens::Indx."
-            ),
-        };
+            SPDETokens::Indx(u) => u,
+            SPDETokens::Vect(v) => match &v[0] {
+                SPDETokens::Indx(u) => u,
+                _ => panic!("{}", err),
+            },
+            _ => panic!("{}", err),
+        }
+        .dim;
         let fu = fu.into();
         let eigs = eigs.into_iter().map(|i| i.into()).collect::<Vec<_>>();
         let dirs = if dirs.len() == 0 {

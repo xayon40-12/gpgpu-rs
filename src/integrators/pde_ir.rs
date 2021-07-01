@@ -541,21 +541,29 @@ fn similar(a: &SPDETokens, b: &SPDETokens) -> bool {
 }
 
 //
-macro_rules! compact_or{
-    ($a:expr, $b:expr, $e:ident|$op:tt, $or:expr) => {{
+macro_rules! compact{
+    ($a:expr, $b:expr, $v:expr, $e:ident|$op:tt) => {{
         use SPDETokens::Const;
         let a = $a; let b = $b;
         if let Const(a) = a {
             if let Const(b) = b {
-                Const(a $op b)
+                let c = Const(a $op b);
+                if $v.len() > 0 {
+                    $e(Box::new(c),$v)
+                } else {
+                    c
+                }
             } else {
-                $e(Box::new(Const(a)),$or(b))
+                $v.push(b);
+                $e(Box::new(Const(a)),$v)
             }
         } else {
             if let Const(b) = b {
-                $e(Box::new(Const(b)),$or(a))
+                $v.push(a);
+                $e(Box::new(Const(b)),$v)
             } else {
-                $e(Box::new(a),$or(b))
+                $v.push(b);
+                $e(Box::new(a),$v)
             }
         }
     }};
@@ -568,12 +576,13 @@ macro_rules! opconcat{
         if let $e(a,mut v) = a {
             if let $e(b,mut w) = b {
                 v.append(&mut w);
-                compact_or!(*a, *b, $e|$op, |b| {v.push(b); v})
+                compact!(*a, *b, v, $e|$op)
             } else {
-                compact_or!(*a, b, $e|$op, |b| {v.push(b); v})
+                compact!(*a, b, v, $e|$op)
             }
         } else {
-            compact_or!(a, b, $e|$op, |b|{vec![b]})
+            let mut v: Vec<SPDETokens> = vec![];
+            compact!(a, b, v, $e|$op)
         }
     }};
     ($e:ident|$op:tt $inv:ident $a:ident $b:ident) => {{
@@ -590,10 +599,11 @@ macro_rules! opconcat{
                     $e(Box::new($inv(Box::new(a),w)),v)
                 }
             } else {
-                compact_or!(*a, b, $e|$op, |b| { v.push(b); v})
+                compact!(*a, b, v, $e|$op)
             }
         } else {
-            compact_or!(a, b, $e|$op, |b|{vec![b]})
+            let mut v: Vec<SPDETokens> = vec![];
+            compact!(a, b, v, $e|$op)
         }
     }};
 }

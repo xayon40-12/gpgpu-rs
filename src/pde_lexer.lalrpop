@@ -57,7 +57,7 @@ Func: LexerComp = {
             v.apply(|v| kt(name, v, eigenvalues, dirs))
         ))
     },
-    <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).apply(|i| func(name, i))},
+    <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).fuse_apply(|i,_| func(name, i).into())},
     <d:r"#[<>]?x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
         let (start,n,dirs) = if d.len() > 1 {
             let (start,s) = if &d[1..2] == ">" { (0,2) } else if &d[1..2] == "<" { (1,2) } else { (0,1) };

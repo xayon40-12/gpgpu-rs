@@ -18,20 +18,18 @@ pub fn h(
     let theta = 2.0;
     let min = |a, b| Func("min".into(), vec![a, b]);
     let max = |a, b| Func("max".into(), vec![a, b]);
-    let abs = |a| Func("abs".into(), vec![a]);
+    let abs = |a| Func("fabs".into(), vec![a]);
     let sign = |a| Func("sign".into(), vec![a]);
-    let sgn = |a, b, c| ((sign(a) + sign(b)) * Const(0.5) + sign(c)) * Const(0.5);
-    let minmod = |a: SPDETokens, b: SPDETokens, c: SPDETokens| {
-        sgn(a.clone(), b.clone(), c.clone()) * min(abs(a), min(abs(b), abs(c)))
+    let minmod = |a: SPDETokens, b: SPDETokens| {
+        (sign(a.clone()) + sign(b.clone())) * Const(0.5) * min(abs(a), abs(b))
     };
     let ux = |u: Indexable| {
-        let up = Indx(u.clone().apply_idx(p));
+        let up = Indx(u.clone().apply_idx(&idx(1, 1, d)));
         let uc = Indx(u.clone());
-        let um = Indx(u.apply_idx(m));
+        let um = Indx(u.apply_idx(&idx(-1, -1, d)));
         minmod(
             Const(theta) * (uc.clone() - um.clone()),
-            (up.clone() - um) * Const(0.5),
-            Const(theta) * (up - uc),
+            minmod((up.clone() - um) * Const(0.5), Const(theta) * (up - uc)),
         )
     };
     let up = |u: Indexable| Indx(u.clone().apply_idx(p)) - ux(u) * Const(0.5);

@@ -273,6 +273,10 @@ impl SPDETokens {
             Sub(a, b) => apply!(a - b),
             Mul(a, b) => apply!(a * b),
             Div(a, b) => apply!(a / b),
+            Pow(a, b) => Pow(
+                Box::new(a.apply_indexable(f)),
+                Box::new(b.apply_indexable(f)),
+            ),
             Func(n, a) => Func(
                 n,
                 a.into_iter()
@@ -280,6 +284,11 @@ impl SPDETokens {
                     .collect::<Vec<_>>(),
             ),
             Indx(a) => f(a),
+            Vect(v) => Vect(
+                v.into_iter()
+                    .map(|i| i.apply_indexable(f))
+                    .collect::<Vec<_>>(),
+            ),
             _ => self,
         }
         .into()

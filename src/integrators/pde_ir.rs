@@ -399,6 +399,7 @@ pub mod ir_helper {
         let dim = match &u {
             SPDETokens::Indx(u) => u,
             SPDETokens::Vect(v) => match &v[0] {
+                // FIXME all parts of a vector might not have the same dimension
                 SPDETokens::Indx(u) => u,
                 _ => panic!("{}", err),
             },

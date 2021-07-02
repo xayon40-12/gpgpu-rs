@@ -32,8 +32,14 @@ pub fn h(
             minmod((up.clone() - um) * Const(0.5), Const(theta) * (up - uc)),
         )
     };
-    let up = |u: Indexable| Indx(u.clone().apply_idx(p)) - ux(u) * Const(0.5);
-    let um = |u: Indexable| Indx(u.clone().apply_idx(m)) + ux(u) * Const(0.5);
+    let up = |u: Indexable| {
+        let u = u.clone().apply_idx(p);
+        Indx(u.clone()) - ux(u) * Const(0.5)
+    };
+    let um = |u: Indexable| {
+        let u = u.clone().apply_idx(m);
+        Indx(u.clone()) + ux(u) * Const(0.5)
+    };
     let a = |eigs: &Vec<SPDETokens>| {
         let mut tmp = eigs
             .iter()

@@ -18,6 +18,7 @@ Factor: LexerComp = {
 
 Pow: LexerComp = {
     <l:Func> "^" <r:Pow> => l ^ r,
+    <l:Func> "**" <r:Pow> => l ^ r,
     Func,
 };
 

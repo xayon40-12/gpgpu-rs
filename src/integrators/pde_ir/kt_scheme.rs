@@ -1,5 +1,5 @@
 use crate::integrators::pde_ir::SPDETokens::*;
-use crate::integrators::pde_ir::*;
+use crate::integrators::pde_ir::{ir_helper::*, *};
 
 pub fn kt(u: &SPDETokens, fu: &SPDETokens, eigs: &Vec<SPDETokens>, d: usize) -> SPDETokens {
     let iv = Symb(["ivdx", "ivdy", "ivdz"][d].into());
@@ -16,10 +16,10 @@ pub fn h(
     let p = &idx(1, idir, d);
     let m = &idx(-1, idir, d);
     let theta = 2.0;
-    let min = |a, b| Func("min".into(), vec![a, b]);
-    let max = |a, b| Func("max".into(), vec![a, b]);
-    let abs = |a| Func("fabs".into(), vec![a]);
-    let sign = |a| Func("sign".into(), vec![a]);
+    let min = |a, b| func("min".into(), vec![a, b]);
+    let max = |a, b| func("max".into(), vec![a, b]);
+    let abs = |a| func("fabs".into(), vec![a]);
+    let sign = |a| func("sign".into(), vec![a]);
     let minmod = |a: SPDETokens, b: SPDETokens| {
         (sign(a.clone()) + sign(b.clone())) * Const(0.5) * min(abs(a), abs(b))
     };

@@ -23,7 +23,8 @@ Pow: LexerComp = {
 };
 
 Func: LexerComp = {
-    "fix" <params:("[" <Num> "," <Num> "]")?> "(" <f:r"[a-zA-Z]\w*"> <vals:("," <Expr>)*> ")" => {
+    // fix[e,max_iter](func_name, params...)
+    "fix" <params:("[" <Num> "," <Num> "]")?> "(" <f:r"[a-zA-Z]\w*"> <vals:("," <Expr>)+> ")" => {
           let novec = |mut i: Vec<String>| if i.len() > 1 {
               panic!("Expected single value, found Vect.");
           } else {
@@ -32,13 +33,16 @@ Func: LexerComp = {
           compact(vals).fuse_apply(|p,len| {
                 let p = p.into_iter().map(|i| novec(i.to_ocl())).collect::<Vec<_>>();
                 let next = p.iter().map(|i| &i[..]).collect::<Vec<&str>>();
+                // next[0] is the initial value for the nexton iterativ method
+                let newton_names = (0..next.len()-1).map(|i| format!("_v_{}", i)).collect::<Vec<_>>();
+                let newton_names = newton_names.iter().map(|i| &i[..]).collect::<Vec<_>>();
                 let (e,max_iter) = if let Some((e,max_iter)) = params {
                     (e,max_iter as i32)
                 } else {
                     (1e-3,1000)
                 };
                 let name = format!("_{}_fix", fun_len+len);
-                let fix = fix_newton(&name,f,&next[..],e,max_iter);
+                let fix = fix_newton(&name,f,&newton_names[..],e,max_iter);
                 LexerComp {
                     token: func(&name, next),
                     funs: vec![fix],
@@ -53,10 +57,10 @@ Func: LexerComp = {
             'z' => DimDir::Z,
             a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
         }).collect::<Vec<_>>();
-        name.unwrap_or(current_var.clone().expect("KT call must be given the name of the variable it operate on if it is not in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)").into()).fuse_apply(|name,_|
-        compact(eigenvalues).fuse_apply(|eigenvalues,_|
-            v.apply(|v| kt(name, v, eigenvalues, dirs))
-        ))
+         name.unwrap_or(current_var.clone().expect("KT call must be given the name of the variable it operate on if it is not in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)").into()).fuse_apply(|name,_|
+         compact(eigenvalues).fuse_apply(|eigenvalues,_|
+             v.apply(|v| kt(name, v, eigenvalues, dirs))
+         ))
     },
     <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).fuse_apply(|i,_| func(name, i).into())},
     <d:r"#[<>]?x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
@@ -85,8 +89,8 @@ Term: LexerComp = {
     Num => <>.into(),
     Symb,
     "(" <Expr> ")",
-    "[" <s:Expr> <mut t:("," <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| Vect(i))},
-    "[" <s:Expr> <mut t:(";" <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| Vect(i))},
+    "[" <s:Expr> <mut t:("," <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| vect(i))},
+    "[" <s:Expr> <mut t:(";" <Expr>)+> "]" => {t.insert(0,s); compact(t).apply(|i| vect(i))},
 };
 
 Symb: LexerComp = {

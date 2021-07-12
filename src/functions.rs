@@ -131,12 +131,13 @@ pub fn functions() -> HashMap<&'static str, Function<'static>> {
             needed: vec![],
         },
         Function {
-            name: "nullIfNaN",
-            args: vec![FCParam("x",CF64)],
+            name: "ifNaNInf",
+            args: vec![FCParam("x",CF64),FCParam("val",CF64)],
             ret_type: Some(CF64),
-            src: "    if(x!=x) {{ return 0.0; }} else {{ return x; }}",
+            src: "    if(x!=x || isinf(x)) {{ return val; }} else {{ return x; }}",
             needed: vec![],
         },
+
     ].into_iter().map(|f| (f.name,f)).collect()
 }
 
@@ -212,7 +213,7 @@ fn function_test() -> crate::Result<()> {
     let num = 1 << 6;
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VF64((0..num).map(|i| i as f64 - 1.0).collect())))
-        .load_function("nullIfNaN")
+        .load_function("ifNaNInf")
         .create_function(Function {
             name: "f",
             args: vec![FCParam("x", CF64), FCParam("a", CF64)],
@@ -224,7 +225,7 @@ fn function_test() -> crate::Result<()> {
         .create_kernel(&Kernel {
             name: "_main",
             src: "    double a = u[x];
-    u[x] = nullIfNaN(floor(fix(a,a)*1000)/1000.0);",
+    u[x] = ifNaNInf(floor(fix(a,a)*1000)/1000.0, 0.0);",
             args: vec![KCBuffer("u", CF64)],
             needed: vec![],
         })

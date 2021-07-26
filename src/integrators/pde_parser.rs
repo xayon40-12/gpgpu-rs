@@ -35,7 +35,9 @@ pub fn parse<'a>(
 
 #[test]
 fn pde_lexer() {
-    let parse = |c: &[DPDE], f: usize, gd: usize, m: &str| parse(c, gd, f, m).unwrap();
+    let parse = |c: &[DPDE], cur: &Option<SPDETokens>, f: usize, gd: usize, m: &str| {
+        parse(c, cur, gd, f, m).unwrap()
+    };
     let u = DPDE {
         var_name: "u".into(),
         boundary: "b".into(),
@@ -59,20 +61,26 @@ fn pde_lexer() {
     let lu = [large];
     println!(
         "{:?}",
-        parse(&pu, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")
+        parse(&pu, &None, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")
     );
-    println!("{:?}", parse(&[], 0, 3, "2^3^4"));
-    println!("{:?}", parse(&[], 0, 3, "[1,cos(2),4]"));
-    println!("{:?}", parse(&[], 0, 3, "[1;cos(2);4]"));
-    println!("{:?}", parse(&pu, 0, 3, "#>xz u"));
-    println!("{:?}", parse(&pu, 0, 3, "#<xz u"));
-    println!("{:?}", parse(&pu, 0, 3, "#>xz^2 u"));
-    println!("{:?}", parse(&pu, 0, 3, "#<xz^2 u"));
-    println!("{:?}", parse(&pu, 0, 3, "#>xz [u,u]"));
-    println!("{:?}", parse(&vu, 0, 3, "#> v"));
-    println!("{:?}", parse(&pu, 0, 3, "#> u"));
-    println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
-    println!("{:?}", parse(&[], 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5"));
-    println!("{:?}", parse(&[], 1, 3, "fix(f,fix(b,r))"));
-    println!("{:?}", parse(&lu, 0, 2, "l[4..6,2,7..9]*l[0..6]"));
+    println!("{:?}", parse(&[], &None, 0, 3, "2^3^4"));
+    println!("{:?}", parse(&[], &None, 0, 3, "[1,cos(2),4]"));
+    println!("{:?}", parse(&[], &None, 0, 3, "[1;cos(2);4]"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#<xz u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz^2 u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#<xz^2 u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz [u,u]"));
+    println!("{:?}", parse(&vu, &None, 0, 3, "#> v"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#> u"));
+    println!(
+        "{:?}",
+        parse(&[], &None, 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5")
+    );
+    println!(
+        "{:?}",
+        parse(&[], &None, 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5")
+    );
+    println!("{:?}", parse(&[], &None, 1, 3, "fix(f,fix(b,r))"));
+    println!("{:?}", parse(&lu, &None, 0, 2, "l[4..6,2,7..9]*l[0..6]"));
 }

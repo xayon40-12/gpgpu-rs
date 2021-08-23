@@ -144,6 +144,9 @@ pub enum SPDETokens {
     Indx(Indexable),
 }
 
+fn vdim(v: &Vec<SPDETokens>) -> usize {
+    v.iter().map(|i| i.dim()).fold(0, |a,b| usize::max(a,b))
+}
 impl SPDETokens {
     fn is_scalar(&self) -> bool {
         use SPDETokens::*;
@@ -162,13 +165,31 @@ impl SPDETokens {
         }
     }
 
-    fn dim(&self) -> Option<usize> {
+    fn is_indexable(&self) -> bool {
+        use SPDETokens::*;
+        let is = |v: Vec<Self>| v.iter().map(|i| i.is_indexable()).fold(false, |a,b| a || b);
+        match self.clone().convert() {
+            // the result under asume that everything as been converted so the .convert() is needed to guaranty the asumption
+            Add(a, s, _) => a.is_indexable() || is(s),
+            Sub(a, s, _) => a.is_indexable() || is(s),
+            Mul(a, s, _) => a.is_indexable() || is(s),
+            Div(a, s, _) => a.is_indexable() || is(s),
+            Pow(a, b, _) => a.is_indexable() || b.is_indexable(),
+            Func(_, v, _) => is(v),
+            Symb(..) => false,
+            Const(..) => false,
+            Vect(v, _) => is(v),
+            Indx(..) => true,
+        }
+    }
+
+    fn dim(&self) -> usize {
         use SPDETokens::*;
         macro_rules! andthen {
-            ($a:ident $b:ident) => { $a.and_then(|$a| $b.and_then(|$b| if $b == $a { Some($a) } else { None })) };
-            (dim $a:ident dim  $b:ident) => { $a.dim().and_then(|$a| $b.dim().and_then(|$b| if $b == $a { Some($a) } else { None })) };
-            (dim $a:ident  $b:ident) => { $a.dim().and_then(|$a| $b.and_then(|$b| if $b == $a { Some($a) } else { None })) };
-            ($a:ident dim $b:ident) => { $a.and_then(|$a| $b.dim().and_then(|$b| if $b == $a { Some($a) } else { None })) };
+            ($a:ident $b:ident) => { usize::max($a,$b) };
+            (dim $a:ident dim  $b:ident) => { usize::max($a.dim(), $b.dim()) };
+            (dim $a:ident  $b:ident) => { usize::max($a.dim(),$b) };
+            ($a:ident dim $b:ident) => { usize::max($a, $b.dim()) };
             ($a:ident vec $v:ident) => {
                 $v.iter().fold($a.dim(), |acc,i| {
                     let i = i.dim();
@@ -182,17 +203,15 @@ impl SPDETokens {
             Mul(a, t, _) => andthen!(a vec t),
             Div(a, t, _) => andthen!(a vec t),
             Pow(a, b, _) => andthen!(dim a dim b),
-            Func(_, v, _) => {
-                let mut v = v.clone();
-                let s = v.pop().expect("There must be at least one expr in a Func.");
-                andthen!(s vec v)
-            }
-            Symb(_) => Some(1),
-            Const(_) => Some(1),
-            Vect(v, _) => Some(v.len()),
-            Indx(..) => Some(1),
+            Func(_, v, _) => vdim(v),
+            Symb(_) => 0,
+            Const(_) => 0,
+            Vect(v, _) => vdim(v),
+            Indx(i) => i.dim,
         }
     }
+
+
     fn _to_ocl(self) -> String {
         use SPDETokens::*;
         macro_rules! foldop {
@@ -317,6 +336,7 @@ impl SPDETokens {
     // where ivdx = 1.0/dx
     fn apply_diff(self, dir: DiffDir) -> Self {
         use SPDETokens::*;
+        println!("self: {:?}", self);
 
         let (coordinc, mut dirs) = match dir.clone() {
             Forward(dirs) => (1, dirs),
@@ -351,20 +371,39 @@ impl SPDETokens {
                     .next()
                     .expect("There must be at least one element in Vect");
                 vals.fold(first, |a, i| a + i)
-            }
-            a @ _ => {
+            },
+            Add(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a+b),
+            Sub(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a-b),
+            Mul(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a*b),
+            Div(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a/b),
+            Pow(a, b, _) => if b.is_indexable() { panic!("Differenciation of Indexable at the exponent is not supported") } else { b.clone()*a.clone()^(b-Const(1.0))*a.apply_diff(dir.clone()) },
+            Func(n, v, _) => {
                 if dirs.len() == 0 {
-                    match a.dim() {
-                        Some(d) => {
-                            if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
-                            dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
-                        },
-                        None => panic!("Diff must be applyed to an expression containing only sub-expression of the same dim (dim of a Const is 1)."),
-                    }
+                    let d = vdim(&v);
+                    if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
+                    dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
                 }
                 let mut res = dirs
                     .into_iter()
-                    .map(|d| div(a.clone(), d))
+                    .map(|d| div(Func(n.clone(), v.clone(), false), d))
+                    .collect::<Vec<_>>();
+                if res.len() == 1 {
+                    res.pop().unwrap()
+                } else {
+                    ir_helper::vect(res)
+                }
+            },
+            Symb(..) => 0.0.into(),
+            Const(..) => 0.0.into(),
+            Indx(i) => {
+                if dirs.len() == 0 {
+                    let d = i.dim;
+                    if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
+                    dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
+                }
+                let mut res = dirs
+                    .into_iter()
+                    .map(|d| div(Indx(i.clone()), d))
                     .collect::<Vec<_>>();
                 if res.len() == 1 {
                     res.pop().unwrap()

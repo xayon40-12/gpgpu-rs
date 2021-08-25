@@ -336,7 +336,6 @@ impl SPDETokens {
     // where ivdx = 1.0/dx
     fn apply_diff(self, dir: DiffDir) -> Self {
         use SPDETokens::*;
-        println!("self: {:?}", self);
 
         let (coordinc, mut dirs) = match dir.clone() {
             Forward(dirs) => (1, dirs),

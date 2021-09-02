@@ -145,7 +145,7 @@ pub enum SPDETokens {
 }
 
 fn vdim(v: &Vec<SPDETokens>) -> usize {
-    v.iter().map(|i| i.dim()).fold(0, |a,b| usize::max(a,b))
+    v.iter().map(|i| i.dim()).fold(0, |a, b| usize::max(a, b))
 }
 impl SPDETokens {
     fn is_scalar(&self) -> bool {
@@ -165,9 +165,35 @@ impl SPDETokens {
         }
     }
 
+    fn indexables(&self) -> Vec<Indexable> {
+        use SPDETokens::*;
+        let all = |a: Option<SPDETokens>, s: Vec<SPDETokens>| {
+            let mut ai = a.and_then(|i| Some(i.indexables())).unwrap_or(vec![]);
+            s.iter().for_each(|i| ai.append(&mut i.indexables()));
+            ai
+        };
+        match self.clone().convert() {
+            // the result under asume that everything as been converted so the .convert() is needed to guaranty the asumption
+            Add(a, s, _) => all(Some(*a), s),
+            Sub(a, s, _) => all(Some(*a), s),
+            Mul(a, s, _) => all(Some(*a), s),
+            Div(a, s, _) => all(Some(*a), s),
+            Pow(a, b, _) => all(None, vec![*a, *b]),
+            Func(_, v, _) => all(None, v),
+            Symb(..) => vec![],
+            Const(..) => vec![],
+            Vect(v, _) => all(None, v),
+            Indx(i) => vec![i],
+        }
+    }
+
     fn is_indexable(&self) -> bool {
         use SPDETokens::*;
-        let is = |v: Vec<Self>| v.iter().map(|i| i.is_indexable()).fold(false, |a,b| a || b);
+        let is = |v: Vec<Self>| {
+            v.iter()
+                .map(|i| i.is_indexable())
+                .fold(false, |a, b| a || b)
+        };
         match self.clone().convert() {
             // the result under asume that everything as been converted so the .convert() is needed to guaranty the asumption
             Add(a, s, _) => a.is_indexable() || is(s),
@@ -210,7 +236,6 @@ impl SPDETokens {
             Indx(i) => i.dim,
         }
     }
-
 
     fn _to_ocl(self) -> String {
         use SPDETokens::*;
@@ -299,7 +324,7 @@ impl SPDETokens {
         }
     }
 
-    fn apply_indexable<F: Fn(Indexable) -> SPDETokens + Copy>(self, f: F) -> Self {
+    fn apply_indexable<F: Fn(Indexable) -> SPDETokens>(self, f: &F) -> Self {
         use SPDETokens::*;
         macro_rules! apply {
             ($a:ident) => {
@@ -329,7 +354,7 @@ impl SPDETokens {
     }
 
     fn apply_idx(self, idx: &[i32; 4]) -> Self {
-        self.apply_indexable(|s| SPDETokens::Indx(s.apply_idx(idx)))
+        self.apply_indexable(&|s: Indexable| SPDETokens::Indx(s.apply_idx(idx)))
     }
 
     // WARNING: diff are considered to be multiplied by the inverse of dx: (f(x+1)-f(x))*ivdx
@@ -370,16 +395,36 @@ impl SPDETokens {
                     .next()
                     .expect("There must be at least one element in Vect");
                 vals.fold(first, |a, i| a + i)
-            },
-            Add(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a+b),
-            Sub(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a-b),
-            Mul(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a*b),
-            Div(a, s, _) => s.into_iter().map(|a| a.apply_diff(dir.clone())).fold(a.apply_diff(dir.clone()), |a,b| a/b),
-            Pow(a, b, _) => if b.is_indexable() { panic!("Differenciation of Indexable at the exponent is not supported") } else { b.clone()*a.clone()^(b-Const(1.0))*a.apply_diff(dir.clone()) },
+            }
+            Add(a, s, _) => s
+                .into_iter()
+                .map(|a| a.apply_diff(dir.clone()))
+                .fold(a.apply_diff(dir.clone()), |a, b| a + b),
+            Sub(a, s, _) => s
+                .into_iter()
+                .map(|a| a.apply_diff(dir.clone()))
+                .fold(a.apply_diff(dir.clone()), |a, b| a - b),
+            Mul(a, s, _) => s
+                .into_iter()
+                .map(|a| a.apply_diff(dir.clone()))
+                .fold(a.apply_diff(dir.clone()), |a, b| a * b),
+            Div(a, s, _) => s
+                .into_iter()
+                .map(|a| a.apply_diff(dir.clone()))
+                .fold(a.apply_diff(dir.clone()), |a, b| a / b),
+            Pow(a, b, _) => {
+                if b.is_indexable() {
+                    panic!("Differenciation of Indexable at the exponent is not supported")
+                } else {
+                    b.clone() * a.clone() ^ (b - Const(1.0)) * a.apply_diff(dir.clone())
+                }
+            }
             Func(n, v, _) => {
                 if dirs.len() == 0 {
                     let d = vdim(&v);
-                    if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
+                    if d > 3 {
+                        panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).")
+                    }
                     dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
                 }
                 let mut res = dirs
@@ -391,13 +436,15 @@ impl SPDETokens {
                 } else {
                     ir_helper::vect(res)
                 }
-            },
+            }
             Symb(..) => 0.0.into(),
             Const(..) => 0.0.into(),
             Indx(i) => {
                 if dirs.len() == 0 {
                     let d = i.dim;
-                    if d > 3 { panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).") }
+                    if d > 3 {
+                        panic!("Diff cannot be applied to an expression of dim>3 (as the dim of a pde variable should not be greater than 3).")
+                    }
                     dirs = (0..d).map(|i| _dir[i]).collect::<Vec<_>>()
                 }
                 let mut res = dirs
@@ -626,13 +673,8 @@ macro_rules! compact{
                 $e(Box::new(Const(a)),$v,true)
             }
         } else {
-            if let Const(b) = b {
-                $v.push(a);
-                $e(Box::new(Const(b)),$v,true)
-            } else {
-                $v.push(b);
-                $e(Box::new(a),$v,true)
-            }
+            $v.push(b);
+            $e(Box::new(a),$v,true)
         }
     }};
 }

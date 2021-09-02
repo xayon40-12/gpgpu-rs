@@ -40,20 +40,77 @@ pub fn h(
         let u = u.clone().apply_idx(m);
         Indx(u.clone()) + ux(u) * Const(0.5)
     };
+    let ud = |i: i32| {
+        let mut id = [0; 4];
+        id[d] = i;
+        move |u: Indexable| Indx(u.apply_idx(&id))
+    };
+    let udv = |i: i32, v: &Indexable| {
+        let mut id = [0; 4];
+        id[d] = i;
+        let var_name = v.var_name.clone();
+        move |u: Indexable| {
+            if var_name == u.var_name {
+                Indx(u.apply_idx(&id))
+            } else {
+                Indx(u)
+            }
+        }
+    };
+    let minmodf = |p: i32, c: i32, m: i32| {
+        let div = |l: i32, r: i32| {
+            let ful = &ap(fu, ud(l));
+            let fur = &ap(fu, ud(r));
+            let mut divs = fu
+                .indexables()
+                .iter()
+                .map(|v| {
+                    let sv = &Indx(v.clone());
+                    func(
+                        "ifNaNInf",
+                        vec![
+                            (ful.clone() - ap(ful, udv(r - l, v)) + ap(fur, udv(l - r, v))
+                                - fur.clone())
+                                / Const(2.0)
+                                / (ap(sv, ud(l)) - ap(sv, ud(r))),
+                            Const(0.0),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>();
+            if divs.len() == 0 {
+                Const(0.0)
+            } else {
+                let first = divs.pop().unwrap();
+                divs.iter().fold(first, |a, i| a + i)
+            }
+        };
+        let fp = div(p, c);
+        let fc = div(p, m);
+        let fm = div(c, m);
+        min(Const(theta) * abs(fp), min(abs(fc), Const(theta) * abs(fm)))
+    };
     let a = |eigs: &Vec<SPDETokens>| {
-        let mut tmp = eigs
-            .iter()
-            .map(|e| max(abs(ap(e, up)), abs(ap(e, um))))
-            .collect::<Vec<_>>();
-        let fst = tmp
-            .pop()
-            .expect("There must be at least one eigenvalue given for KT scheme.");
-        tmp.into_iter().fold(fst, |acc, i| max(acc, i))
+        if eigs.len() > 0 {
+            let mut tmp = eigs
+                .iter()
+                .map(|e| max(abs(ap(e, up)), abs(ap(e, um))))
+                .collect::<Vec<_>>();
+            let fst = tmp
+                .pop()
+                .expect("There must be at least one eigenvalue given for KT scheme.");
+            tmp.into_iter().fold(fst, |acc, i| max(acc, i))
+        } else {
+            let p = (1 + idir) / 2;
+            let fxp = minmodf(p + 1, p, p - 1);
+            let fxm = minmodf(p, p - 1, p - 2);
+            max(fxp, fxm)
+        }
     };
     (ap(fu, up) + ap(fu, um) - a(eigs) * (ap(u, up) - ap(u, um))) * Const(0.5)
 }
-fn ap(u: &SPDETokens, f: impl Fn(Indexable) -> SPDETokens + Copy) -> SPDETokens {
-    u.clone().apply_indexable(f)
+fn ap(u: &SPDETokens, f: impl Fn(Indexable) -> SPDETokens) -> SPDETokens {
+    u.clone().apply_indexable(&f)
 }
 
 fn idx(dir: i32, idir: i32, d: usize) -> [i32; 4] {

@@ -49,8 +49,8 @@ Func: LexerComp = {
                 }
           })
     },
-    <d:r"#KTx?y?z?"> "[" <name:(<Symb> ";")?> <mut eigenvalues:(<Expr> ",")*> <end:Expr> "]" <v:Term> => {
-        eigenvalues.push(end);
+    <d:r"#KTx?y?z?"> "[" <name:(<Symb> ";")?> <mut eigenvalues:(<Expr> ",")*> <end:Expr?> "]" <v:Term> => {
+        if let Some(end) = end {eigenvalues.push(end);}
         let dirs = d[3..].chars().map(|c| match c {
             'x' => DimDir::X,
             'y' => DimDir::Y,

@@ -3,7 +3,7 @@ use crate::integrators::pde_ir::{ir_helper::*, *};
 
 pub fn kt(u: &SPDETokens, fu: &SPDETokens, eigs: &Vec<SPDETokens>, d: usize) -> SPDETokens {
     let iv = Symb(["ivdx", "ivdy", "ivdz"][d].into());
-    Const(-1f64) * (h(u, fu, eigs, d, 1) - h(u, fu, eigs, d, -1)) * iv
+    Const(1f64) * (h(u, fu, eigs, d, 1) - h(u, fu, eigs, d, -1)) * iv
 }
 
 pub fn h(

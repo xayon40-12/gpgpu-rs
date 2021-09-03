@@ -3,7 +3,7 @@ use crate::integrators::pde_ir::{ir_helper::*, *};
 
 pub fn kt(u: &SPDETokens, fu: &SPDETokens, eigs: &Vec<SPDETokens>, d: usize) -> SPDETokens {
     let iv = Symb(["ivdx", "ivdy", "ivdz"][d].into());
-    Const(1f64) * (h(u, fu, eigs, d, 1) - h(u, fu, eigs, d, -1)) * iv
+    (h(u, fu, eigs, d, 1) - h(u, fu, eigs, d, -1)) * iv
 }
 
 pub fn h(
@@ -23,10 +23,16 @@ pub fn h(
     let minmod = |a: SPDETokens, b: SPDETokens| {
         (sign(a.clone()) + sign(b.clone())) * Const(0.5) * min(abs(a), abs(b))
     };
+    let ud = |i: i32| {
+        let mut id = [0; 4];
+        id[d] = i;
+        move |u: Indexable| Indx(u.apply_idx(&id))
+    };
     let ux = |u: Indexable| {
-        let up = Indx(u.clone().apply_idx(&idx(1, 1, d)));
-        let uc = Indx(u.clone());
-        let um = Indx(u.apply_idx(&idx(-1, -1, d)));
+        let u = Indx(u);
+        let up = ap(&u, ud(1));
+        let um = ap(&u, ud(-1));
+        let uc = u;
         minmod(
             Const(theta) * (uc.clone() - um.clone()),
             minmod((up.clone() - um) * Const(0.5), Const(theta) * (up - uc)),
@@ -39,11 +45,6 @@ pub fn h(
     let um = |u: Indexable| {
         let u = u.clone().apply_idx(m);
         Indx(u.clone()) + ux(u) * Const(0.5)
-    };
-    let ud = |i: i32| {
-        let mut id = [0; 4];
-        id[d] = i;
-        move |u: Indexable| Indx(u.apply_idx(&id))
     };
     let udv = |i: i32, v: &Indexable| {
         let mut id = [0; 4];
@@ -82,13 +83,13 @@ pub fn h(
                 Const(0.0)
             } else {
                 let first = divs.pop().unwrap();
-                divs.iter().fold(first, |a, i| a + i)
+                divs.into_iter().fold(abs(first), |a, i| a + abs(i))
             }
         };
         let fp = div(p, c);
         let fc = div(p, m);
         let fm = div(c, m);
-        min(Const(theta) * abs(fp), min(abs(fc), Const(theta) * abs(fm)))
+        min(Const(theta) * fp, min(fc, Const(theta) * fm))
     };
     let a = |eigs: &Vec<SPDETokens>| {
         if eigs.len() > 0 {

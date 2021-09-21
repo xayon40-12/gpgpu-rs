@@ -262,9 +262,9 @@ impl SPDETokens {
         }
         match self {
             Add(a, b, _) => foldop!(par a + b),
-            Sub(a, b, _) => format!("({} - {})", a._to_ocl(), b._to_ocl()),
+            Sub(a, b, _) => format!("({} - ({}))", a._to_ocl(), b._to_ocl()),
             Mul(a, b, _) => foldop!(a * b),
-            Div(a, b, _) => format!("({} / {})", a._to_ocl(), b._to_ocl()),
+            Div(a, b, _) => format!("{} / ({})", a._to_ocl(), b._to_ocl()),
             Pow(a, b, _) => format!("pow({},{})", a._to_ocl(), b._to_ocl()),
             Func(n, a, _) => format!(
                 "{}({})",
@@ -375,7 +375,7 @@ impl SPDETokens {
                 Div(a,b,_) => a / b,
                 Pow(a,b,_) => a ^ b,
                 Func(n,a,_) => func(&n,a),
-                Vect(_,_) => panic!("Cannot convert SPDETokens::Vector, it should have been multiplied by another vector."),
+                Vect(v,_) => Vect(v.into_iter().map(|i| i.convert()).collect(),true),
                 _ => self,
             }
         }

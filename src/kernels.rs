@@ -226,12 +226,19 @@ pub struct Radial {
     pub vals: Vec<f64>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Origin {
+    Center,
+    Corner,
+}
+
 pub fn radial(
     a: &Vec<f64>,
     vec_dim: usize,
     dim: &[usize; 3],
     weight: &[f64; 3],
     mean: bool,
+    origin: Origin,
 ) -> Vec<Vec<Radial>> {
     weight
         .iter()
@@ -246,7 +253,11 @@ pub fn radial(
 
     let dm = [dim[0] / 2, dim[1] / 2, dim[2] / 2];
     let dist = |p: &[usize], i: usize| {
-        ((p[i] as f64 - dm[i] as f64) * weight[i] / dim[i] as f64).powf(2.0)
+        let pp = match origin {
+            Origin::Center => p[i],
+            Origin::Corner => (p[i] + dm[i]) % dim[i], // FIXME this might not work for odd dim
+        };
+        ((pp as f64 - dm[i] as f64) * weight[i] / dim[i] as f64).powf(2.0)
     };
     let pos = |i: usize| {
         let x = i % dim[0];

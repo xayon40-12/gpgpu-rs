@@ -239,6 +239,7 @@ pub fn radial(
     weight: &[f64; 3],
     mean: bool,
     origin: Origin,
+    weighted: bool,
 ) -> Vec<Vec<Radial>> {
     weight
         .iter()
@@ -257,7 +258,7 @@ pub fn radial(
             Origin::Center => p[i],
             Origin::Corner => (p[i] + dm[i]) % dim[i], // FIXME this might not work for odd dim
         };
-        ((pp as f64 - dm[i] as f64) * weight[i] / dim[i] as f64).powf(2.0)
+        ((pp as f64 - dm[i] as f64) * if weighted { weight[i] / dim[i] as f64 } else { 1.0 }).powf(2.0)
     };
     let pos = |i: usize| {
         let x = i % dim[0];

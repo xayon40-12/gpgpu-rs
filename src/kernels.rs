@@ -348,7 +348,7 @@ fn radial_test() {
             })
         })
         .collect::<Vec<_>>();
-    let res = radial(&a, 1, &s, &p, true);
+    let res = radial(&a, 1, &s, &p, true, Origin::Center, true);
 
     let cmp = |a: f64, b: f64, e: usize| (a - b) / a < 10.0f64.powf(-(e as f64));
     assert!(res.len() == s[2], "There should be {} chunks", s[2]);

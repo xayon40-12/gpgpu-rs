@@ -292,7 +292,10 @@ pub fn radial(
     let mut j = 0;
     let mut counts = vec![1];
     for i in 1..n {
-        if res[0][i].pos == res[0][j].pos {
+        let a = res[0][i].pos;
+        let b = res[0][j].pos;
+        // if to numbers have at least 14 same digits, the distance is considered to be equal.
+        if a==b || f64::abs(a-b)/f64::min(a,b) < 1e-14 {
             counts[j] += 1;
             res.iter_mut().for_each(|res| {
                 for vd in 0..vec_dim {

@@ -145,7 +145,7 @@ pub enum SPDETokens {
 }
 
 fn vdim(v: &Vec<SPDETokens>) -> usize {
-    v.iter().map(|i| i.dim()).fold(0, |a, b| usize::max(a, b))
+    v.iter().map(|i| i.dim()).fold(0, usize::max)
 }
 impl SPDETokens {
     fn is_scalar(&self) -> bool {
@@ -168,7 +168,7 @@ impl SPDETokens {
     fn indexables(&self) -> Vec<Indexable> {
         use SPDETokens::*;
         let all = |a: Option<SPDETokens>, s: Vec<SPDETokens>| {
-            let mut ai = a.and_then(|i| Some(i.indexables())).unwrap_or(vec![]);
+            let mut ai = a.map(|i| i.indexables()).unwrap_or_default();
             s.iter().for_each(|i| ai.append(&mut i.indexables()));
             ai
         };
@@ -189,11 +189,7 @@ impl SPDETokens {
 
     fn is_indexable(&self) -> bool {
         use SPDETokens::*;
-        let is = |v: Vec<Self>| {
-            v.iter()
-                .map(|i| i.is_indexable())
-                .fold(false, |a, b| a || b)
-        };
+        let is = |v: Vec<Self>| v.iter().map(|i| i.is_indexable()).any(|b| b);
         match self.clone().convert() {
             // the result under asume that everything as been converted so the .convert() is needed to guaranty the asumption
             Add(a, s, _) => a.is_indexable() || is(s),
@@ -277,20 +273,20 @@ impl SPDETokens {
             Symb(a) => a,
             Const(a) => format!("{:e}", a),
             Indx(a) => a.to_string(),
-            s @ _ => panic!("Not expected during SPDEToken::to_ocl: {:?}", s),
+            s => panic!("Not expected during SPDEToken::to_ocl: {:?}", s),
         }
     }
     pub fn to_ocl(&self) -> Vec<String> {
         use SPDETokens::*;
         match self.clone().optimize() {
             Vect(v, _) => v.into_iter().map(|i| i._to_ocl()).collect(),
-            s @ _ => vec![s._to_ocl()],
+            s => vec![s._to_ocl()],
         }
     }
 
     pub fn optimize(self) -> Self {
-        use SPDETokens::*;
         use ir_helper::*;
+        use SPDETokens::*;
         //TODO optimize
         macro_rules! op {
             ($a:ident $op:tt $b:ident, $Op:ident) => {{
@@ -329,21 +325,24 @@ impl SPDETokens {
         }
         let c = self.convert();
         match c {
-            Add(a, b, _) => op!{a + vec b, Add},
-            Sub(a, b, _) => op!{a - b, Sub},
-            Mul(a, b, _) => op!{a * vec b, Mul},
-            Div(a, b, _) => op!{a / b, Div},
+            Add(a, b, _) => op! {a + vec b, Add},
+            Sub(a, b, _) => op! {a - b, Sub},
+            Mul(a, b, _) => op! {a * vec b, Mul},
+            Div(a, b, _) => op! {a / b, Div},
             Pow(a, b, _) => {
-                let a = a.optimize(); 
-                let b = b.optimize(); 
-                if let (Const(a),Const(b)) = (a.clone(),b.clone()) { Const(a.powf(b)) } else { Pow(Box::new(a),Box::new(b),true) }
-            },
+                let a = a.optimize();
+                let b = b.optimize();
+                if let (Const(a), Const(b)) = (a.clone(), b.clone()) {
+                    Const(a.powf(b))
+                } else {
+                    Pow(Box::new(a), Box::new(b), true)
+                }
+            }
             Func(n, a, _) => func(&n, a.into_iter().map(|i| i.optimize()).collect()),
             Vect(v, _) => vect(v.into_iter().map(|i| i.optimize()).collect()),
-            s @ _ => s,
+            s => s,
         }
     }
-
 
     fn is_converted(&self) -> bool {
         use SPDETokens::*;
@@ -369,13 +368,13 @@ impl SPDETokens {
             self
         } else {
             match self {
-                Add(a,b,_) => conv!(a + b),
-                Sub(a,b,_) => a - b,
-                Mul(a,b,_) => conv!(a * b),
-                Div(a,b,_) => a / b,
-                Pow(a,b,_) => a ^ b,
-                Func(n,a,_) => func(&n,a),
-                Vect(v,_) => Vect(v.into_iter().map(|i| i.convert()).collect(),true),
+                Add(a, b, _) => conv!(a + b),
+                Sub(a, b, _) => a - b,
+                Mul(a, b, _) => conv!(a * b),
+                Div(a, b, _) => a / b,
+                Pow(a, b, _) => a ^ b,
+                Func(n, a, _) => func(&n, a),
+                Vect(v, _) => Vect(v.into_iter().map(|i| i.convert()).collect(), true),
                 _ => self,
             }
         }
@@ -407,7 +406,6 @@ impl SPDETokens {
             Vect(v, c) => Vect(apply!(vec v), c),
             _ => self,
         }
-        .into()
     }
 
     fn apply_idx(self, idx: &[i32; 4]) -> Self {
@@ -417,7 +415,7 @@ impl SPDETokens {
     fn is_zero(&self) -> bool {
         match self {
             SPDETokens::Const(a) => a == &0.0,
-            _ => false
+            _ => false,
         }
     }
 
@@ -464,20 +462,34 @@ impl SPDETokens {
                 .into_iter()
                 .map(|a| a.apply_diff(dir.clone()))
                 .fold(a.apply_diff(dir.clone()), |a, b| a + b),
-            Sub(a, b, _) => a.apply_diff(dir.clone())- b.apply_diff(dir.clone()),
-            Mul(a, s, _) => Add(Box::new(Mul(Box::new(a.clone().apply_diff(dir.clone())),s.clone(),false)),{
-                let mut res = vec![];
-                for i in 0..s.len() {
-                    let di = s[i].clone().apply_diff(dir.clone());
-                    if !di.is_zero() {
-                        let mut sd = s.clone();
-                        sd[i] = di;
-                        res.push(Mul(a.clone(),sd,false));
+            Sub(a, b, _) => a.apply_diff(dir.clone()) - b.apply_diff(dir.clone()),
+            Mul(a, s, _) => Add(
+                Box::new(Mul(
+                    Box::new(a.clone().apply_diff(dir.clone())),
+                    s.clone(),
+                    false,
+                )),
+                {
+                    let mut res = vec![];
+                    for i in 0..s.len() {
+                        let di = s[i].clone().apply_diff(dir.clone());
+                        if !di.is_zero() {
+                            let mut sd = s.clone();
+                            sd[i] = di;
+                            res.push(Mul(a.clone(), sd, false));
+                        }
                     }
-                }
-                res
-            },false).convert(),
-            Div(a, b, _) => (a.clone().apply_diff(dir.clone())*b.clone() - a*b.clone().apply_diff(dir.clone()))/b^Const(2.0),
+                    res
+                },
+                false,
+            )
+            .convert(),
+            Div(a, b, _) => {
+                (a.clone().apply_diff(dir.clone()) * b.clone()
+                    - a * b.clone().apply_diff(dir.clone()))
+                    / b
+                    ^ Const(2.0)
+            }
             Pow(a, b, _) => {
                 if b.is_indexable() {
                     panic!("Differenciation of Indexable at the exponent is not supported")
@@ -727,43 +739,36 @@ impl Add for SPDETokens {
             b
         } else if b.is_zero() {
             a
-        } else {
-            if let Vect(a, _) = a {
-                if let Vect(b, _) = b {
-                    if a.len() != b.len() {
-                        panic!("Vect must have the same size to be added")
-                    } else {
-                        ir_helper::vect(
-                            a.into_iter()
-                                .zip(b.into_iter())
-                                .map(|(a, b)| a + b)
-                                .collect()
-                        )
-                    }
+        } else if let Vect(a, _) = a {
+            if let Vect(b, _) = b {
+                if a.len() != b.len() {
+                    panic!("Vect must have the same size to be added")
                 } else {
-                    panic!("The operation 'vector + scalar' is not allowed.")
+                    ir_helper::vect(
+                        a.into_iter()
+                            .zip(b.into_iter())
+                            .map(|(a, b)| a + b)
+                            .collect(),
+                    )
                 }
-            } else if let Vect(..) = b {
-                panic!("The operation 'scalar + vector' is not allowed.")
             } else {
-                if let Add(a1,mut b1,_) = a {
-                    if let Add(a2,mut b2,_) = b {
-                        b1.push(*a2);
-                        b1.append(&mut b2);
-                        Add(a1,b1,true)
-                    } else {
-                        b1.push(b);
-                        Add(a1,b1,true)
-                    }
-                } else {
-                    if let Add(a2,mut b2,_) = b {
-                        b2.insert(0, *a2);
-                        Add(Box::new(a),b2,true)
-                    } else {
-                        Add(Box::new(a),vec![b],true)
-                    }
-                }
+                panic!("The operation 'vector + scalar' is not allowed.")
             }
+        } else if let Vect(..) = b {
+            panic!("The operation 'scalar + vector' is not allowed.")
+        } else if let Add(a1, mut b1, _) = a {
+            if let Add(a2, mut b2, _) = b {
+                b1.push(*a2);
+                b1.append(&mut b2);
+            } else {
+                b1.push(b);
+            }
+            Add(a1, b1, true)
+        } else if let Add(a2, mut b2, _) = b {
+            b2.insert(0, *a2);
+            Add(Box::new(a), b2, true)
+        } else {
+            Add(Box::new(a), vec![b], true)
         }
     }
 }
@@ -776,42 +781,36 @@ impl Sub for SPDETokens {
         let a = self.convert();
         let b = other.convert();
         if a.is_zero() {
-            Const(-1.0)*b
+            Const(-1.0) * b
         } else if b.is_zero() {
             a
-        } else {
-            if let Vect(a, _) = a {
-                if let Vect(b, _) = b {
-                    if a.len() != b.len() {
-                        panic!("Vect must have the same size to be substracted")
-                    } else {
-                        ir_helper::vect(
-                            a.into_iter()
-                                .zip(b.into_iter())
-                                .map(|(a, b)| a - b)
-                                .collect()
-                        )
-                    }
+        } else if let Vect(a, _) = a {
+            if let Vect(b, _) = b {
+                if a.len() != b.len() {
+                    panic!("Vect must have the same size to be substracted")
                 } else {
-                    panic!("The operation 'vector - scalar' is not allowed.")
+                    ir_helper::vect(
+                        a.into_iter()
+                            .zip(b.into_iter())
+                            .map(|(a, b)| a - b)
+                            .collect(),
+                    )
                 }
-            } else if let Vect(..) = b {
-                panic!("The operation 'scalar - vector' is not allowed.")
             } else {
-                if let Sub(a1,b1,_) = a {
-                    if let Sub(a2,b2,_) = b {
-                        Sub(Box::new(a1+b2),Box::new(b1+a2),true)
-                    } else {
-                        Sub(a1,Box::new(b1+b),true)
-                    }
-                } else {
-                    if let Sub(a2,b2,_) = b {
-                        Sub(Box::new(a+b2),a2,true)
-                    } else {
-                        Sub(Box::new(a),Box::new(b),true)
-                    }
-                }
+                panic!("The operation 'vector - scalar' is not allowed.")
             }
+        } else if let Vect(..) = b {
+            panic!("The operation 'scalar - vector' is not allowed.")
+        } else if let Sub(a1, b1, _) = a {
+            if let Sub(a2, b2, _) = b {
+                Sub(Box::new(a1 + b2), Box::new(b1 + a2), true)
+            } else {
+                Sub(a1, Box::new(b1 + b), true)
+            }
+        } else if let Sub(a2, b2, _) = b {
+            Sub(Box::new(a + b2), a2, true)
+        } else {
+            Sub(Box::new(a), Box::new(b), true)
         }
     }
 }
@@ -820,8 +819,8 @@ impl_cs! {Sub,sub}
 impl Mul for SPDETokens {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
-        use SPDETokens::*;
         use ir_helper::vect;
+        use SPDETokens::*;
         let a = Box::new(self.convert());
         let b = Box::new(other.convert());
         if a.is_zero() || b.is_zero() {
@@ -840,36 +839,29 @@ impl Mul for SPDETokens {
                             tmp.fold(first, |a, i| a + i)
                         }
                     }
-                    _ => {
-                        vect(a.into_iter().map(|v| v*b.clone()).collect())
-                    }
+                    _ => vect(a.into_iter().map(|v| v * b.clone()).collect()),
                 },
                 _ => match *b {
-                    Vect(b, _) => {
-                        vect(b.into_iter().map(|v| a.clone()*v).collect())
-                    },
+                    Vect(b, _) => vect(b.into_iter().map(|v| a.clone() * v).collect()),
                     _ => {
                         let a = *a;
                         let b = *b;
-                        if let Mul(a1,mut b1,_) = a {
-                            if let Mul(a2,mut b2,_) = b {
+                        if let Mul(a1, mut b1, _) = a {
+                            if let Mul(a2, mut b2, _) = b {
                                 b1.push(*a2);
                                 b1.append(&mut b2);
-                                Mul(a1,b1,true)
                             } else {
                                 b1.push(b);
-                                Mul(a1,b1,true)
                             }
+                            Mul(a1, b1, true)
+                        } else if let Mul(a2, mut b2, _) = b {
+                            b2.insert(0, *a2);
+                            Mul(Box::new(a), b2, true)
                         } else {
-                            if let Mul(a2,mut b2,_) = b {
-                                b2.insert(0, *a2);
-                                Mul(Box::new(a),b2,true)
-                            } else {
-                                Mul(Box::new(a),vec![b],true)
-                            }
+                            Mul(Box::new(a), vec![b], true)
                         }
                     }
-                }
+                },
             }
         }
     }
@@ -913,10 +905,10 @@ impl BitXor for SPDETokens {
                     a.powf(b).into()
                 } else {
                     let (a, b) = ab;
-                    if let Pow(a1,b1,_) = a {
-                        Pow(a1,Box::new(b1*b),true)
+                    if let Pow(a1, b1, _) = a {
+                        Pow(a1, Box::new(b1 * b), true)
                     } else {
-                        Pow(Box::new(a),Box::new(b),true)
+                        Pow(Box::new(a), Box::new(b), true)
                     }
                 }
             }
@@ -939,24 +931,20 @@ impl Div for SPDETokens {
             Const(0.0)
         } else {
             match self.convert() {
-                Vect(a,_) => {
-                    ir_helper::vect(a.into_iter().map(|v| v/other.clone()).collect())
-                },
-                s @ _ => {
+                Vect(a, _) => ir_helper::vect(a.into_iter().map(|v| v / other.clone()).collect()),
+                s => {
                     let a = s;
                     let b = other.convert();
-                    if let Div(a1,b1,_) = a {
-                        if let Div(a2,b2,_) = b {
-                            Div(Box::new(a1*b2),Box::new(b1*a2),true)
+                    if let Div(a1, b1, _) = a {
+                        if let Div(a2, b2, _) = b {
+                            Div(Box::new(a1 * b2), Box::new(b1 * a2), true)
                         } else {
-                            Div(a1,Box::new(b1*b),true)
+                            Div(a1, Box::new(b1 * b), true)
                         }
+                    } else if let Div(a2, b2, _) = b {
+                        Div(Box::new(a * b2), a2, true)
                     } else {
-                        if let Div(a2,b2,_) = b {
-                            Div(Box::new(a*b2),a2,true)
-                        } else {
-                            Div(Box::new(a),Box::new(b),true)
-                        }
+                        Div(Box::new(a), Box::new(b), true)
                     }
                 }
             }

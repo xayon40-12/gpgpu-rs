@@ -4,14 +4,10 @@ version = "0.1.0"
 authors = ["xayon40-12 <touroux.nathan@gmail.com>"]
 edition = "2018"
 
-[build-dependencies]
-lalrpop = "0.19.4"
-
 [dependencies]
 ocl = "0.19"
 serde = { version = "1.0", features = ["derive"] }
 typetag = "0.1"
 decorum = "0.3.1"
-lalrpop-util = "0.19.4"
 nom = "7"
 regex = "1"

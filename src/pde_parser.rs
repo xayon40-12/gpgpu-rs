@@ -1,11 +1,9 @@
 use crate::functions::SFunction;
-#[allow(unused_imports)]
-pub use crate::integrators::{
-    pde_ir::{ir_helper::DPDE, SPDETokens},
-    SPDE,
-};
-#[allow(unused_imports)]
-use crate::pde_lexer;
+use nom::error::Error;
+pub mod pde_ir;
+pub mod pde_lexer;
+pub use crate::integrators::SPDE;
+pub use pde_ir::{ir_helper::DPDE, SPDETokens};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,9 +22,8 @@ pub fn parse<'a>(
     fun_len: usize,
     global_dim: usize,
     math: &'a str,
-) -> Result<Parsed, lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'a>, &'a str>> {
-    let parsed =
-        pde_lexer::ExprParser::new().parse(context, current_var, fun_len, global_dim, math)?;
+) -> Result<Parsed, Error<&'a str>> {
+    let (_, parsed) = pde_lexer::parse(context, current_var, fun_len, global_dim, math)?;
     Ok(Parsed {
         ocl: parsed.token.to_ocl(),
         funs: parsed.funs,

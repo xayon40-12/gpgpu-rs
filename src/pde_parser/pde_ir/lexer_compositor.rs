@@ -1,5 +1,5 @@
 use crate::functions::SFunction;
-use crate::integrators::pde_ir::SPDETokens;
+use crate::pde_parser::pde_ir::SPDETokens;
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, BitXor, Div, Mul, Sub};
 

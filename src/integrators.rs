@@ -12,9 +12,6 @@ use crate::kernels::Kernel;
 use crate::Handler;
 use serde::{Deserialize, Serialize};
 
-pub mod pde_ir;
-pub mod pde_parser;
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SPDE {
     pub dvar: String,

@@ -131,6 +131,12 @@ impl Indexable {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum Num {
+    Real(f64),
+    Complex(f64, f64),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum SPDETokens {
     Add(Box<SPDETokens>, Vec<SPDETokens>, bool),
     Sub(Box<SPDETokens>, Box<SPDETokens>, bool),
@@ -139,7 +145,7 @@ pub enum SPDETokens {
     Pow(Box<SPDETokens>, Box<SPDETokens>, bool),
     Func(String, Vec<SPDETokens>, bool),
     Symb(String), // considered to be a scalar
-    Const(f64),
+    Const(f64),   //TODO use Num to handle complex number
     Vect(Vec<SPDETokens>, bool),
     Indx(Indexable),
 }

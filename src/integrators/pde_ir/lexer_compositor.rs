@@ -10,16 +10,17 @@ pub struct LexerComp {
 }
 
 impl LexerComp {
-    pub fn apply<T: FnOnce(SPDETokens) -> SPDETokens>(self, f: T) -> LexerComp {
+    pub fn map<T: FnOnce(SPDETokens) -> SPDETokens>(self, f: T) -> LexerComp {
         LexerComp {
             token: f(self.token),
             funs: self.funs,
         }
     }
 
-    pub fn fuse_apply<T: FnOnce(SPDETokens, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
+    pub fn bind_id<T: FnOnce(SPDETokens, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
         let mut res = f(self.token, self.funs.len());
-        res.funs.append(&mut self.funs);
+        self.funs.append(&mut res.funs); // conserve order of function creation
+        res.funs = self.funs;
         res
     }
 }
@@ -38,16 +39,17 @@ impl Compacted {
         }
     }
 
-    pub fn apply<T: FnOnce(Vec<SPDETokens>) -> SPDETokens>(self, f: T) -> LexerComp {
+    pub fn map<T: FnOnce(Vec<SPDETokens>) -> SPDETokens>(self, f: T) -> LexerComp {
         LexerComp {
             token: f(self.tokens),
             funs: self.funs,
         }
     }
 
-    pub fn fuse_apply<T: FnOnce(Vec<SPDETokens>, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
+    pub fn bind_id<T: FnOnce(Vec<SPDETokens>, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
         let mut res = f(self.tokens, self.funs.len());
-        res.funs.append(&mut self.funs);
+        self.funs.append(&mut res.funs);
+        res.funs = self.funs;
         res
     }
 }

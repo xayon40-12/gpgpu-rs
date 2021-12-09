@@ -1,5 +1,4 @@
-use crate::integrators::pde_ir::SPDETokens::*;
-use crate::integrators::pde_ir::{ir_helper::*, *};
+use crate::pde_parser::pde_ir::{ir_helper::*, SPDETokens::*, *};
 
 pub fn kt(u: &SPDETokens, fu: &SPDETokens, eigs: &Vec<SPDETokens>, d: usize) -> SPDETokens {
     let iv = Symb(["ivdx", "ivdy", "ivdz"][d].into());

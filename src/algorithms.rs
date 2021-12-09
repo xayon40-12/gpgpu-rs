@@ -464,7 +464,7 @@ macro_rules! log {
 
 macro_rules! algo_gen {
     ($algo_macro:ident $name:literal, $CEb:ident|$Eb:ident $CEp:ident|$Ep:ident $CEp_:ident|$Ep_:ident, $src:literal) => {
-        algo_gen!($algo_macro $name, $CEb|$Eb|nop $CEp|$Ep $CEp_|$Ep_, $src);
+        algo_gen!($algo_macro $name, $CEb|$Eb|nop $CEp|$Ep $CEp_|$Ep_, $src)
     };
     ($algo_macro:ident $name:literal, $CEb:ident|$Eb:ident|$Ebp:ident $CEp:ident|$Ep:ident $CEp_:ident|$Ep_:ident, $src:literal) => {
         #[allow(unused)]

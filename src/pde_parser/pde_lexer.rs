@@ -1,19 +1,25 @@
-use crate::functions::fix_newton;
-use crate::pde_parser::pde_ir::{ir_helper::*, lexer_compositor::*, DiffDir::*, DimDir};
+use crate::pde_parser::pde_ir::{ir_helper::*, lexer_compositor::*};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
+use nom::character::complete::alpha0;
+use nom::character::complete::alphanumeric0;
 use nom::character::complete::char;
 use nom::character::complete::one_of;
-use nom::combinator::map_res;
+use nom::character::complete::space0;
 use nom::multi::separated_list1;
 use nom::number::complete::double;
 use nom::sequence::delimited;
+use nom::sequence::pair;
 use nom::sequence::tuple;
 use nom::IResult;
-use std::str::FromStr;
+use std::cell::RefCell;
 
 use super::pde_ir::lexer_compositor::LexerComp;
-use super::{Parsed, SPDETokens, DPDE};
+use super::{SPDETokens, DPDE};
+
+thread_local!(
+    static VARS: RefCell<Vec<DPDE>> = RefCell::new(vec![]);
+);
 
 pub fn parse<'a>(
     context: &[DPDE],                 // var name
@@ -22,30 +28,38 @@ pub fn parse<'a>(
     global_dim: usize,                // dim
     math: &'a str,
 ) -> IResult<&'a str, LexerComp> {
-    expr(math)
+    VARS.with(|v| *v.borrow_mut() = context.iter().cloned().collect());
+    delimited(space0, expr, space0)(math)
+}
+
+fn stag(s: &str) -> impl Fn(&str) -> IResult<&str, &str> {
+    |s| delimited(space0, tag(s), space0)(s)
 }
 
 fn expr(s: &str) -> IResult<&str, LexerComp> {
-    let a = |s| tuple((expr, tag("+"), factor))(s).map(|(s, (l, _, r))| (s, l + r));
-    let b = |s| tuple((expr, tag("-"), factor))(s).map(|(s, (l, _, r))| (s, l - r));
+    let a = |s| tuple((expr, stag("+"), factor))(s).map(|(s, (l, _, r))| (s, l + r));
+    let b = |s| tuple((expr, stag("-"), factor))(s).map(|(s, (l, _, r))| (s, l - r));
     let c = |s| factor(s);
     alt((a, b, c))(s)
 }
 
 fn factor(s: &str) -> IResult<&str, LexerComp> {
-    let a = |s| tuple((factor, tag("*"), pow))(s).map(|(s, (l, _, r))| (s, l * r));
-    let b = |s| tuple((factor, tag("/"), pow))(s).map(|(s, (l, _, r))| (s, l / r));
+    let a = |s| tuple((factor, stag("*"), pow))(s).map(|(s, (l, _, r))| (s, l * r));
+    let b = |s| tuple((factor, stag("/"), pow))(s).map(|(s, (l, _, r))| (s, l / r));
     let c = |s| pow(s);
     alt((a, b, c))(s)
 }
 
 fn pow(s: &str) -> IResult<&str, LexerComp> {
-    let a = |s| tuple((func, alt((tag("^"), tag("**"))), pow))(s).map(|(s, (l, _, r))| (s, l ^ r));
+    let a =
+        |s| tuple((func, alt((stag("^"), stag("**"))), pow))(s).map(|(s, (l, _, r))| (s, l ^ r));
     let b = |s| func(s);
     alt((a, b))(s)
 }
 
-fn func(s: &str) -> IResult<&str, LexerComp> {}
+fn func(s: &str) -> IResult<&str, LexerComp> {
+    symb(s) // TODO implement func
+}
 
 fn term(s: &str) -> IResult<&str, LexerComp> {
     let parens = delimited(char('('), expr, char(')'));
@@ -56,7 +70,10 @@ fn term(s: &str) -> IResult<&str, LexerComp> {
     alt((num, symb, parens, arr))(s)
 }
 
-fn symb(s: &str) -> IResult<&str, LexerComp> {}
+fn symb(s: &str) -> IResult<&str, LexerComp> {
+    let name = |s| pair(alpha0, alphanumeric0)(s).map(|(s, (a, b))| (s, ()));
+    alt((name))(s)
+}
 
 fn num(s: &str) -> IResult<&str, LexerComp> {
     double(s).map(|(s, d)| (s, d.into()))

@@ -3,22 +3,30 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::alpha0;
 use nom::character::complete::alphanumeric0;
-use nom::character::complete::char;
 use nom::character::complete::one_of;
 use nom::character::complete::space0;
+use nom::character::complete::u32;
+use nom::combinator::opt;
+use nom::error::Error;
 use nom::multi::separated_list1;
 use nom::number::complete::double;
 use nom::sequence::delimited;
 use nom::sequence::pair;
+use nom::sequence::preceded;
 use nom::sequence::tuple;
+use nom::Finish;
 use nom::IResult;
 use std::cell::RefCell;
+use std::ops::Range;
 
 use super::pde_ir::lexer_compositor::LexerComp;
 use super::{SPDETokens, DPDE};
 
 thread_local!(
     static VARS: RefCell<Vec<DPDE>> = RefCell::new(vec![]);
+    static CURRENT: RefCell<Option<SPDETokens>> = RefCell::new(None);
+    static GLOBAL_DIM: RefCell<usize> = RefCell::new(0);
+    static FUN_LEN: RefCell<usize> = RefCell::new(0);
 );
 
 pub fn parse<'a>(
@@ -27,52 +35,107 @@ pub fn parse<'a>(
     fun_len: usize,                   // number of existing functions
     global_dim: usize,                // dim
     math: &'a str,
-) -> IResult<&'a str, LexerComp> {
-    VARS.with(|v| *v.borrow_mut() = context.iter().cloned().collect());
-    delimited(space0, expr, space0)(math)
+) -> Result<(&'a str, LexerComp), Error<&'a str>> {
+    VARS.with(|v| *v.borrow_mut() = context.to_vec());
+    CURRENT.with(|v| *v.borrow_mut() = current_var.clone());
+    GLOBAL_DIM.with(|v| *v.borrow_mut() = global_dim);
+    FUN_LEN.with(|v| *v.borrow_mut() = fun_len);
+    delimited(space0, expr, space0)(math).finish()
 }
 
-fn stag(s: &str) -> impl Fn(&str) -> IResult<&str, &str> {
-    |s| delimited(space0, tag(s), space0)(s)
+fn stag(t: &'static str) -> impl Fn(&str) -> IResult<&str, &str> {
+    move |s| delimited(space0, tag(t), space0)(s)
 }
 
 fn expr(s: &str) -> IResult<&str, LexerComp> {
-    let a = |s| tuple((expr, stag("+"), factor))(s).map(|(s, (l, _, r))| (s, l + r));
-    let b = |s| tuple((expr, stag("-"), factor))(s).map(|(s, (l, _, r))| (s, l - r));
-    let c = |s| factor(s);
-    alt((a, b, c))(s)
+    let add = |s| tuple((expr, stag("+"), factor))(s).map(|(s, (l, _, r))| (s, l + r));
+    let sub = |s| tuple((expr, stag("-"), factor))(s).map(|(s, (l, _, r))| (s, l - r));
+    alt((add, sub, factor))(s)
 }
 
 fn factor(s: &str) -> IResult<&str, LexerComp> {
-    let a = |s| tuple((factor, stag("*"), pow))(s).map(|(s, (l, _, r))| (s, l * r));
-    let b = |s| tuple((factor, stag("/"), pow))(s).map(|(s, (l, _, r))| (s, l / r));
-    let c = |s| pow(s);
-    alt((a, b, c))(s)
+    let mul = |s| tuple((factor, stag("*"), pow))(s).map(|(s, (l, _, r))| (s, l * r));
+    let div = |s| tuple((factor, stag("/"), pow))(s).map(|(s, (l, _, r))| (s, l / r));
+    alt((mul, div, pow))(s)
 }
 
 fn pow(s: &str) -> IResult<&str, LexerComp> {
-    let a =
+    let pow =
         |s| tuple((func, alt((stag("^"), stag("**"))), pow))(s).map(|(s, (l, _, r))| (s, l ^ r));
-    let b = |s| func(s);
-    alt((a, b))(s)
+    alt((pow, func))(s)
 }
 
 fn func(s: &str) -> IResult<&str, LexerComp> {
-    symb(s) // TODO implement func
+    term(s) // TODO implement func
+}
+
+fn array<T: Clone>(
+    f: impl Fn(&str) -> IResult<&str, T> + Copy,
+) -> impl Fn(&str) -> IResult<&str, Vec<T>> {
+    move |s| {
+        delimited(
+            stag("["),
+            separated_list1(delimited(space0, one_of(",;"), space0), f),
+            stag("]"),
+        )(s)
+        .map(|(s, vs)| (s, vs.to_vec()))
+    }
 }
 
 fn term(s: &str) -> IResult<&str, LexerComp> {
-    let parens = delimited(char('('), expr, char(')'));
-    let arr = |s| {
-        delimited(char('['), separated_list1(one_of(",;"), expr), char(']'))(s)
-            .map(|(s, v)| (s, compact(v).map(|i| vect(i))))
-    };
-    alt((num, symb, parens, arr))(s)
+    let parens = delimited(stag("("), expr, stag(")"));
+    let arr = |s| array(expr)(s).map(|(s, v)| (s, compact(v).map(vect)));
+    let unary_minus = preceded(stag("-"), expr);
+    alt((num, symb, parens, arr, unary_minus))(s)
+}
+
+fn extract_variable(name: String, r: &[Range<usize>]) -> LexerComp {
+    let mut dpde = None;
+    VARS.with(|vars| {
+        vars.borrow().iter().for_each(|v| {
+            if v.var_name == name {
+                dpde = Some(v.clone());
+            }
+        })
+    });
+    let mut gd = None;
+    GLOBAL_DIM.with(|d| {
+        gd = Some(*d.borrow());
+    });
+    let gd = gd.expect("Thread error, could not retreive global dim.");
+    if let Some(DPDE {
+        var_name: v,
+        boundary: b,
+        var_dim: d,
+        vec_dim: vd,
+    }) = dpde
+    {
+        if !r.is_empty() {
+            Indexable::new_slice(d, gd, vd, r, &v, &b)
+        } else if vd > 1 {
+            Indexable::new_vector(d, gd, vd, &v, &b)
+        } else {
+            Indexable::new_scalar(d, gd, &v, &b)
+        }
+    } else if !r.is_empty() {
+        panic!("Symbol \"{}\" is not indexable.", name)
+    } else {
+        Symb(name)
+    }
+    .into()
+}
+
+fn range(s: &str) -> IResult<&str, Range<usize>> {
+    pair(u32, opt(preceded(stag(".."), u32)))(s)
+        .map(|(s, (a, b))| (s, a as usize..b.unwrap_or(a + 1) as usize))
 }
 
 fn symb(s: &str) -> IResult<&str, LexerComp> {
-    let name = |s| pair(alpha0, alphanumeric0)(s).map(|(s, (a, b))| (s, ()));
-    alt((name))(s)
+    let name = |s| pair(alpha0, alphanumeric0)(s).map(|(s, (a, b))| (s, format!("{}{}", a, b)));
+    let var = |s| name(s).map(|(s, v)| (s, extract_variable(v, &[])));
+    let vect_idx = |s| pair(name, array(range))(s).map(|(s, (v, u))| (s, extract_variable(v, &u)));
+    let x = alt((vect_idx, var))(s);
+    x
 }
 
 fn num(s: &str) -> IResult<&str, LexerComp> {
@@ -81,27 +144,6 @@ fn num(s: &str) -> IResult<&str, LexerComp> {
 
 /*
 
-
-Symb: LexerComp = {
-    r"[a-zA-Z]\w*" => vars.iter().fold(symb(<>),
-        |acc,DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd}| if <> == v { if *vd>1 { Indexable::new_vector(*d,gd,*vd,&v,&b) } else { Indexable::new_scalar(*d,gd,&v,&b) } } else { acc }).into(),
-    r"[a-zA-Z]\w*\[\d+(\.\.\d+)?(,\d+(\.\.\d+)?)*\]" => {
-        let tmp = <>.split("[").collect::<Vec<_>>();
-        let name = tmp[0];
-        let vals = tmp[1][..tmp[1].len()-1].split(",").collect::<Vec<_>>();
-        let DPDE{var_name: v, boundary: b, var_dim: d, vec_dim: vd} = vars.iter().fold(None, |acc,d|
-            if name == d.var_name { Some(d) } else { acc }).expect(&format!("symbol \"{}\" not found in equations or pdes.", name));
-        let slices = vals.into_iter().map(|i| {
-            let s = i.split("..").map(|d| d.parse::<usize>().unwrap()).collect::<Vec<_>>();
-            if s.len() == 1 {
-                s[0]..s[0]+1
-            } else {
-                s[0]..s[1]+1 // inclusive range for lexer
-            }
-        }).collect::<Vec<_>>();
-        Indexable::new_slice(*d, gd, *vd, &slices[..], &v, &b).into()
-    },
-};
 
 Func: LexerComp = {
     // fix[e,max_iter](func_name, params...)

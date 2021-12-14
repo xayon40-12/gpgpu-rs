@@ -155,7 +155,7 @@ pub fn fix_newton<'a>(
     f: &'a str,
     extra_param_f: &'a [&'a str],
     e: f64,
-    max_iter: i32,
+    max_iter: u32,
 ) -> SFunction {
     let mut extra = extra_param_f.join(",");
     if extra.len() > 0 {

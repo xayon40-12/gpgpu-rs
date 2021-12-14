@@ -17,8 +17,8 @@ impl LexerComp {
         }
     }
 
-    pub fn bind_id<T: FnOnce(SPDETokens, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
-        let mut res = f(self.token, self.funs.len());
+    pub fn bind<T: FnOnce(SPDETokens) -> LexerComp>(mut self, f: T) -> LexerComp {
+        let mut res = f(self.token);
         self.funs.append(&mut res.funs); // conserve order of function creation
         res.funs = self.funs;
         res
@@ -46,8 +46,8 @@ impl Compacted {
         }
     }
 
-    pub fn bind_id<T: FnOnce(Vec<SPDETokens>, usize) -> LexerComp>(mut self, f: T) -> LexerComp {
-        let mut res = f(self.tokens, self.funs.len());
+    pub fn bind<T: FnOnce(Vec<SPDETokens>) -> LexerComp>(mut self, f: T) -> LexerComp {
+        let mut res = f(self.tokens);
         self.funs.append(&mut res.funs);
         res.funs = self.funs;
         res

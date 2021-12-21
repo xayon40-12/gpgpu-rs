@@ -6,13 +6,14 @@ use nom::bytes::complete::tag;
 use nom::character::complete::one_of;
 use nom::character::complete::space0;
 use nom::character::complete::u32;
-use nom::combinator::opt;
+use nom::combinator::{eof, opt};
 use nom::error::Error;
 use nom::multi::separated_list1;
 use nom::number::complete::double;
 use nom::sequence::delimited;
 use nom::sequence::pair;
 use nom::sequence::preceded;
+use nom::sequence::terminated;
 use nom::Finish;
 use nom::IResult;
 use std::cell::RefCell;
@@ -27,7 +28,7 @@ mod var;
 
 thread_local!(
     static VARS: RefCell<Vec<DPDE>> = RefCell::new(vec![]);
-    static CURRENT: RefCell<Option<SPDETokens>> = RefCell::new(None);
+    static CURRENT_VAR: RefCell<Option<SPDETokens>> = RefCell::new(None);
     static GLOBAL_DIM: RefCell<usize> = RefCell::new(0);
     static FUN_LEN: RefCell<usize> = RefCell::new(0);
 );
@@ -38,8 +39,7 @@ fn next_id() -> usize {
         fun_len = Some(*fl.borrow());
         *fl.borrow_mut() += 1;
     });
-    let fun_len = fun_len.expect("Could not retreive FUN_LEN in fix_constructor.");
-    fun_len
+    fun_len.expect("Could not retreive FUN_LEN in fix_constructor.")
 }
 
 pub fn parse<'a>(
@@ -50,10 +50,10 @@ pub fn parse<'a>(
     math: &'a str,
 ) -> Result<(&'a str, LexerComp), Error<&'a str>> {
     VARS.with(|v| *v.borrow_mut() = context.to_vec());
-    CURRENT.with(|v| *v.borrow_mut() = current_var.clone());
+    CURRENT_VAR.with(|v| *v.borrow_mut() = current_var.clone());
     GLOBAL_DIM.with(|v| *v.borrow_mut() = global_dim);
     FUN_LEN.with(|v| *v.borrow_mut() = fun_len);
-    delimited(space0, expr, space0)(math).finish()
+    terminated(delimited(space0, expr, space0), eof)(math).finish()
 }
 
 pub fn stag(t: &'static str) -> impl Fn(&str) -> IResult<&str, &str> {
@@ -76,13 +76,14 @@ pub fn array<T: Clone>(
 pub fn term(s: &str) -> IResult<&str, LexerComp> {
     let parens = delimited(stag("("), expr, stag(")"));
     let arr = |s| array(expr)(s).map(|(s, v)| (s, compact(v).map(vect)));
-    let unary_minus = preceded(stag("-"), expr);
-    alt((num, var, parens, arr, unary_minus))(s)
+    let unary_minus =
+        |s| preceded(stag("-"), expr)(s).map(|(s, v)| (s, LexerComp::from(Const(-1.0)) * v));
+    alt((parens, arr, num, unary_minus, var))(s)
 }
 
 pub fn range(s: &str) -> IResult<&str, Range<usize>> {
     pair(u32, opt(preceded(stag(".."), u32)))(s)
-        .map(|(s, (a, b))| (s, a as usize..b.unwrap_or(a + 1) as usize))
+        .map(|(s, (a, b))| (s, a as usize..(b.unwrap_or(a) + 1) as usize))
 }
 pub fn num(s: &str) -> IResult<&str, LexerComp> {
     double(s).map(|(s, d)| (s, d.into()))

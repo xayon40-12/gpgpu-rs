@@ -1,18 +1,27 @@
 use crate::functions::fix_newton;
+use crate::pde_parser::pde_ir::ir_helper::diff;
 use crate::pde_parser::pde_ir::ir_helper::func;
+use crate::pde_parser::pde_ir::ir_helper::kt;
 use crate::pde_parser::pde_ir::ir_helper::lexer_compositor::compact;
+use crate::pde_parser::pde_lexer::expr;
 use crate::pde_parser::pde_lexer::var::var;
-use crate::pde_parser::pde_lexer::FUN_LEN;
+use crate::pde_parser::pde_lexer::DiffDir::{Backward, Forward};
+use crate::DimDir;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
+use nom::character::complete::one_of;
+use nom::character::complete::space0;
 use nom::character::complete::u32;
 use nom::combinator::opt;
+use nom::multi::many1;
+use nom::multi::separated_list0;
 use nom::multi::separated_list1;
 use nom::number::complete::double;
 use nom::sequence::delimited;
 use nom::sequence::pair;
 use nom::sequence::preceded;
+use nom::sequence::terminated;
 use nom::sequence::tuple;
 use nom::IResult;
 
@@ -22,6 +31,7 @@ use crate::pde_parser::pde_lexer::term;
 use super::next_id;
 use super::stag;
 use super::var::aanum;
+use super::CURRENT_VAR;
 
 // fix[e,max_iter]<func_name, init>(params...)
 pub fn fix(s: &str) -> IResult<&str, LexerComp> {
@@ -32,7 +42,7 @@ pub fn fix(s: &str) -> IResult<&str, LexerComp> {
         tuple((opt(e), opt(preceded(tag(","), max_iter)))),
         char(']'),
     );
-    let init = delimited(char('<'), pair(aanum, var), char('>'));
+    let init = delimited(char('<'), pair(aanum, preceded(stag(","), var)), char('>'));
     let args = delimited(char('('), separated_list1(stag(","), var), char(')'));
     tuple((tag("fix"), opt(param), init, opt(args)))(s)
         .map(|(s, (_, p, i, a))| (s, fix_constructor(p, i, a)))
@@ -73,50 +83,116 @@ fn fix_constructor(
         }
     })
 }
-pub fn fun(s: &str) -> IResult<&str, LexerComp> {
-    alt((fix, term))(s)
-    //alt((fix,kt,fun,diff,term))(s)
+
+fn diff_dir(s: &str) -> IResult<&str, Vec<char>> {
+    alt((
+        |s| one_of("xyz")(s).map(|(s, i)| (s, vec![i])),
+        preceded(
+            char('_'),
+            delimited(char('{'), many1(one_of("xyz")), char('}')),
+        ),
+    ))(s)
 }
 
-/*
+fn kt_diff(s: &str) -> IResult<&str, LexerComp> {
+    let d = preceded(tag("#KT"), opt(diff_dir));
+    let options = opt(delimited(
+        char('['),
+        pair(
+            opt(terminated(var, stag(";"))),
+            separated_list0(stag(","), expr),
+        ),
+        char(']'),
+    ));
+    tuple((d, options, space0, term))(s).map(|(s, (d, o, _, t))| (s, kt_constructor(d, o, t)))
+}
 
-
-Func: LexerComp = {
-
-    <d:r"#KTx?y?z?"> "[" <name:(<Symb> ";")?> <mut eigenvalues:(<Expr> ",")*> <end:Expr?> "]" <v:Term> => {
-        if let Some(end) = end {eigenvalues.push(end);}
-        let dirs = d[3..].chars().map(|c| match c {
+fn kt_constructor(
+    dirs: Option<Vec<char>>,
+    options: Option<(Option<LexerComp>, Vec<LexerComp>)>,
+    term: LexerComp,
+) -> LexerComp {
+    let (name, eigenvalues) = options.unwrap_or((None, vec![]));
+    let dirs = dirs
+        .unwrap_or_default()
+        .iter()
+        .map(|c| match c {
             'x' => DimDir::X,
             'y' => DimDir::Y,
             'z' => DimDir::Z,
-            a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
-        }).collect::<Vec<_>>();
-         name.unwrap_or(current_var.clone().expect("KT call must be given the name of the variable it operate on if it is not in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)").into()).fuse_apply(|name,_|
-         compact(eigenvalues).fuse_apply(|eigenvalues,_|
-             v.apply(|v| kt(name, v, eigenvalues, dirs))
+            a => panic!(
+                "Character '{}' not expected in Func lexer for diff regex.",
+                a
+            ),
+        })
+        .collect::<Vec<_>>();
+    let mut current_var = None;
+    CURRENT_VAR.with(|d| {
+        current_var = Some(d.borrow().clone());
+    });
+    let current_var = current_var.expect("Thread error, could not retreive current variable.");
+    name.unwrap_or_else(|| current_var.clone().expect("KT call must be given the name of the variable it operate on if it is not in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)").into()).bind(|name|
+         compact(eigenvalues).bind(|eigenvalues|
+             term.map(|v| kt(name, v, eigenvalues, dirs))
          ))
-    },
-    <name:r"[a-zA-Z]\w*"> "(" <mut vals:(<Expr> ",")*> <end:Expr> ")" => {vals.push(end); compact(vals).fuse_apply(|i,_| func(name, i).into())},
-    <d:r"#[<>]?x?y?z?(\^ *[0-9]+)?"> <v:Term> => {
-        let (start,n,dirs) = if d.len() > 1 {
-            let (start,s) = if &d[1..2] == ">" { (0,2) } else if &d[1..2] == "<" { (1,2) } else { (0,1) };
-            let (e,n) = match d.find("^") {
-                Some(e) => (e,d[e+1..].parse::<usize>().unwrap()),
-                None => (d.len(),1)
-            };
-            let dirs = d[s..e].chars().map(|c| match c {
-                'x' => DimDir::X,
-                'y' => DimDir::Y,
-                'z' => DimDir::Z,
-                a @ _ => panic!("Character '{}' not expected in Func lexer for diff regex.",a)
-            }).collect::<Vec<_>>();
-            (start,n,dirs)
-        } else {
-            (0,1,vec![])
-        };
-        (0..n).fold(v, |v,i| v.apply(|v| diff(v, if (i+start)%2 == 0 { Forward(dirs.clone()) } else { Backward(dirs.clone()) })))
-    },
-    Term,
-};
+}
 
-*/
+fn fun_call(s: &str) -> IResult<&str, LexerComp> {
+    pair(
+        aanum,
+        delimited(stag("("), separated_list1(stag(","), expr), stag(")")),
+    )(s)
+    .map(|(s, (name, l))| (s, compact(l).bind(|l| func(&name, l).into())))
+}
+
+fn bf_diff(s: &str) -> IResult<&str, LexerComp> {
+    let d = preceded(
+        char('#'),
+        pair(
+            opt(|s| one_of("<>")(s).map(|(s, c)| (s, c == '>'))),
+            opt(diff_dir),
+        ),
+    );
+    let pow = preceded(char('^'), u32);
+    tuple((d, opt(pow), space0, term))(s)
+        .map(|(s, ((bf, dirs), p, _, t))| (s, bf_diff_constructor(bf, dirs, p, t)))
+}
+
+fn bf_diff_constructor(
+    forward: Option<bool>,
+    dirs: Option<Vec<char>>,
+    pow: Option<u32>,
+    term: LexerComp,
+) -> LexerComp {
+    let start = if forward.unwrap_or(true) { 0 } else { 1 };
+    let n = pow.unwrap_or(1);
+    let dirs = dirs
+        .unwrap_or_default()
+        .iter()
+        .map(|c| match c {
+            'x' => DimDir::X,
+            'y' => DimDir::Y,
+            'z' => DimDir::Z,
+            a => panic!(
+                "Character '{}' not expected in Func lexer for diff regex.",
+                a
+            ),
+        })
+        .collect::<Vec<_>>();
+    (0..n).fold(term, |v, i| {
+        v.map(|v| {
+            diff(
+                v,
+                if (i + start) % 2 == 0 {
+                    Forward(dirs.clone())
+                } else {
+                    Backward(dirs.clone())
+                },
+            )
+        })
+    })
+}
+
+pub fn fun(s: &str) -> IResult<&str, LexerComp> {
+    alt((fix, kt_diff, fun_call, bf_diff, term))(s)
+}

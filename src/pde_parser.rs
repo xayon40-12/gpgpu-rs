@@ -56,24 +56,22 @@ fn pde_lexer() {
         vec_dim: 10,
     };
     let lu = [large];
+    println!("{:?}", parse(&pu, &None, 0, 3, "22 + (1 - 4 + 15)"));
     println!(
         "{:?}",
         parse(&pu, &None, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")
     );
     println!("{:?}", parse(&[], &None, 0, 3, "2^3^4"));
+    println!("{:?}", parse(&[], &None, 0, 3, "[1,4]"));
     println!("{:?}", parse(&[], &None, 0, 3, "[1,cos(2),4]"));
     println!("{:?}", parse(&[], &None, 0, 3, "[1;cos(2);4]"));
-    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz u"));
-    println!("{:?}", parse(&pu, &None, 0, 3, "#<xz u"));
-    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz^2 u"));
-    println!("{:?}", parse(&pu, &None, 0, 3, "#<xz^2 u"));
-    println!("{:?}", parse(&pu, &None, 0, 3, "#>xz [u,u]"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>_{xz} u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#<_{xz} u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>_{xz}^2 u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#<_{xz}^2 u"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "#>_{xz} [u,u]"));
     println!("{:?}", parse(&vu, &None, 0, 3, "#> v"));
     println!("{:?}", parse(&pu, &None, 0, 3, "#> u"));
-    println!(
-        "{:?}",
-        parse(&[], &None, 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5")
-    );
     println!(
         "{:?}",
         parse(&[], &None, 0, 3, "cos (sin (3)) + atan2(3, 4)^1.5")

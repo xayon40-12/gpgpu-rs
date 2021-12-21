@@ -6,7 +6,8 @@ use gpgpu::descriptors::{
 };
 use gpgpu::dim::{Dim::*, DimDir::*};
 use gpgpu::functions::Function;
-use gpgpu::integrators::{create_euler_pde, pde_ir::ir_helper::*, *};
+use gpgpu::integrators::{create_euler_pde, *};
+use gpgpu::pde_parser::pde_ir::ir_helper::*;
 use gpgpu::Handler;
 
 fn main() -> gpgpu::Result<()> {
@@ -50,6 +51,7 @@ fn pde_generator_test() -> gpgpu::Result<()> {
 fn simple_int() -> gpgpu::Result<()> {
     let l = 2;
     let m = 1000;
+    let dt = 2.0 / m as f64;
     let mut gpu = Handler::builder()?
         .add_buffer("u", Len(0.0.into(), l))
         .add_buffer("v", Len(3.0.into(), l))
@@ -57,7 +59,7 @@ fn simple_int() -> gpgpu::Result<()> {
         .add_buffer("swv", Len(0.0.into(), l))
         .create_algorithm(create_euler_pde(
             "simple",
-            2.0 / m as f64,
+            dt,
             vec![
                 SPDE {
                     dvar: "u".into(),
@@ -81,7 +83,8 @@ fn simple_int() -> gpgpu::Result<()> {
     };
     let bufs = ["u", "swu", "v", "swv"];
     for _ in 0..m {
-        gpu.run_algorithm("simple", D1(l), &[], &bufs, Mut(&mut ip))?;
+        gpu.run_algorithm("simple", D1(l), &[], &bufs, Ref(&ip))?;
+        ip.t += dt;
     }
     println!("simple_int");
     println!("u:   {:?}", gpu.get("u")?.VF64());
@@ -128,7 +131,8 @@ fn diffusion_int() -> gpgpu::Result<()> {
             print!(" {}%\r", i * 100 / m);
             std::io::stdout().lock().flush().unwrap();
         }
-        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Mut(&mut ip))?;
+        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Ref(&ip))?;
+        ip.t += dt;
     }
     println!("diffusion_int");
     println!(
@@ -182,7 +186,8 @@ fn diffusion_int_vect() -> gpgpu::Result<()> {
             print!(" {}%\r", i * 100 / m);
             std::io::stdout().lock().flush().unwrap();
         }
-        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Mut(&mut ip))?;
+        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Ref(&ip))?;
+        ip.t += dt;
     }
     println!("diffusion_int_vect");
     println!(
@@ -212,7 +217,12 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
         .add_buffer("swu", Len(0.0.into(), l))
         .create_function(&Function {
             name: "b",
-            args: vec![FCParam("x", CU32), FCGlobalPtr("u", CF64)],
+            args: vec![
+                FCParam("x", CU32),
+                FCParam("w", CU32),
+                FCParam("w_size", CU32),
+                FCGlobalPtr("u", CF64),
+            ],
             ret_type: Some(CF64),
             src: "return u[x%get_global_size(0)];",
             needed: vec![],
@@ -247,7 +257,8 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
             print!(" {}%\r", i * 100 / m);
             std::io::stdout().lock().flush().unwrap();
         }
-        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Mut(&mut ip))?;
+        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Ref(&ip))?;
+        ip.t += dt;
     }
     println!("diffusion_int_pde_gen");
     println!(

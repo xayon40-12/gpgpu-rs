@@ -85,13 +85,13 @@ fn fix_constructor(
 }
 
 fn diff_dir(s: &str) -> IResult<&str, Vec<char>> {
-    alt((
-        |s| one_of("xyz")(s).map(|(s, i)| (s, vec![i])),
-        preceded(
-            char('_'),
+    preceded(
+        char('_'),
+        alt((
+            |s| one_of("xyz")(s).map(|(s, i)| (s, vec![i])),
             delimited(char('{'), many1(one_of("xyz")), char('}')),
-        ),
-    ))(s)
+        )),
+    )(s)
 }
 
 fn kt_diff(s: &str) -> IResult<&str, LexerComp> {

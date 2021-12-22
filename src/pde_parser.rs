@@ -57,6 +57,7 @@ fn pde_lexer() {
     };
     let lu = [large];
     println!("{:?}", parse(&pu, &None, 0, 3, "22 + (1 - 4 + 15)"));
+    println!("{:?}", parse(&pu, &None, 0, 3, "22 + x_size"));
     println!(
         "{:?}",
         parse(&pu, &None, 0, 3, "22 + (1 - 4+-15.7^(1--0.3+D+u))*7")

@@ -5,8 +5,7 @@ use crate::pde_parser::pde_lexer::VARS;
 use crate::pde_parser::SPDETokens::Symb;
 use crate::pde_parser::DPDE;
 use nom::branch::alt;
-use nom::character::complete::alpha0;
-use nom::character::complete::alphanumeric0;
+use nom::bytes::complete::take_while;
 use nom::sequence::pair;
 use nom::IResult;
 use std::ops::Range;
@@ -52,7 +51,13 @@ pub fn extract_variable(name: String, r: &[Range<usize>]) -> LexerComp {
 }
 
 pub fn aanum(s: &str) -> IResult<&str, String> {
-    pair(alpha0, alphanumeric0)(s).map(|(s, (a, b))| (s, format!("{}{}", a, b)))
+    let is_alpha = |c| ('A'..='Z').contains(&c) || ('a'..='z').contains(&c);
+    let is_num = |c| ('0'..='9').contains(&c);
+    pair(
+        take_while(move |c| is_alpha(c) || c == '_'),
+        take_while(move |c| is_alpha(c) || is_num(c) || c == '_'),
+    )(s)
+    .map(|(s, (a, b))| (s, format!("{}{}", a, b)))
 }
 
 pub fn var(s: &str) -> IResult<&str, LexerComp> {

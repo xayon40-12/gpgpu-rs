@@ -22,6 +22,8 @@ fn main() -> gpgpu::Result<()> {
     println!("\n------------------------------------------------------\n");
     diffusion_int_pde_gen()?;
     println!("\n------------------------------------------------------\n");
+    fix_small()?;
+    println!("\n------------------------------------------------------\n");
     Ok(())
 }
 
@@ -215,6 +217,80 @@ fn diffusion_int_pde_gen() -> gpgpu::Result<()> {
     let mut gpu = Handler::builder()?
         .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
         .add_buffer("swu", Len(0.0.into(), l))
+        .create_function(&Function {
+            name: "b",
+            args: vec![
+                FCParam("x", CU32),
+                FCParam("w", CU32),
+                FCParam("w_size", CU32),
+                FCGlobalPtr("u", CF64),
+            ],
+            ret_type: Some(CF64),
+            src: "return u[x%get_global_size(0)];",
+            needed: vec![],
+        })
+        .create_algorithm(create_euler_pde(
+            "diffusion",
+            dt,
+            vec![SPDE {
+                dvar: "u".into(),
+                expr,
+            }],
+            None,
+            vec![
+                ("D".into(), CF64),
+                ("ivdx".into(), CF64),
+                ("t".into(), CF64),
+            ],
+        ))
+        .build()?;
+
+    let args = vec![("D".to_string(), F64(2.0)), ("ivdx".to_string(), F64(2.0))];
+    let mut ip = IntegratorParam {
+        t: 0.0,
+        increment_name: "t".into(),
+        args,
+    };
+    let bufs = ["u", "swu"];
+    let m = (t / dt) as usize;
+    let start = SystemTime::now();
+    for i in 0..m {
+        if i % (1 + m / 100) == 0 {
+            print!(" {}%\r", i * 100 / m);
+            std::io::stdout().lock().flush().unwrap();
+        }
+        gpu.run_algorithm("diffusion", D1(l), &[], &bufs, Ref(&ip))?;
+        ip.t += dt;
+    }
+    println!("diffusion_int_pde_gen");
+    println!(
+        "{} s / {} steps / {} elements",
+        SystemTime::now().duration_since(start).unwrap().as_millis() as f64 / 1000.0,
+        m,
+        l
+    );
+    println!(
+        "u[0]: {:?} <-> {}",
+        gpu.get_first("u")?.F64(),
+        (l - 1) as f64 / 2.0
+    );
+    Ok(())
+}
+
+#[allow(non_snake_case)]
+fn fix_small() -> gpgpu::Result<()> {
+    let u = Indexable::new_scalar(1, 1, "u", "b");
+    let D = symb("D");
+    let f = Forward(vec![X]);
+    let b = Backward(vec![X]);
+    let expr = (D * diff(diff(u, f), b)).to_ocl();
+    println!("{:?}", expr);
+
+    let l = 1 << 21;
+    let t = 10.0;
+    let dt = 0.01;
+    let mut gpu = Handler::builder()?
+        .add_buffer("u", Data(VF64((0..l).map(|i| i as _).collect())))
         .create_function(&Function {
             name: "b",
             args: vec![

@@ -56,6 +56,8 @@ fn pde_lexer() {
         vec_dim: 10,
     };
     let lu = [large];
+    println!("{:?}", parse(&pu, &None, 0, 3, "- 2 - 4"));
+    assert_eq!(parse(&[], &None, 0, 3, "- 2 - 4").ocl, &["-6e0"]);
     println!("{:?}", parse(&pu, &None, 0, 3, "22 + (1 - 4 + 15)"));
     println!("{:?}", parse(&pu, &None, 0, 3, "22 + x_size"));
     println!(

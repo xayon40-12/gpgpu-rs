@@ -1,5 +1,6 @@
 use crate::pde_parser::pde_ir::{ir_helper::*, lexer_compositor::*};
 use crate::pde_parser::pde_lexer::math::expr;
+use crate::pde_parser::pde_lexer::math::factor;
 use crate::pde_parser::pde_lexer::var::var;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -77,7 +78,7 @@ pub fn term(s: &str) -> IResult<&str, LexerComp> {
     let parens = delimited(stag("("), expr, stag(")"));
     let arr = |s| array(expr)(s).map(|(s, v)| (s, compact(v).map(vect)));
     let unary_minus =
-        |s| preceded(stag("-"), expr)(s).map(|(s, v)| (s, LexerComp::from(Const(-1.0)) * v));
+        |s| preceded(stag("-"), factor)(s).map(|(s, v)| (s, LexerComp::from(Const(-1.0)) * v));
     alt((parens, arr, num, unary_minus, var))(s)
 }
 

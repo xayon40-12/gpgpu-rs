@@ -42,8 +42,8 @@ pub fn fix(s: &str) -> IResult<&str, LexerComp> {
         tuple((opt(e), opt(preceded(tag(","), max_iter)))),
         char(']'),
     );
-    let init = delimited(char('<'), pair(aanum, preceded(stag(","), var)), char('>'));
-    let args = delimited(char('('), separated_list1(stag(","), var), char(')'));
+    let init = delimited(char('<'), pair(aanum, preceded(stag(","), expr)), char('>'));
+    let args = delimited(char('('), separated_list1(stag(","), expr), char(')'));
     tuple((tag("fix"), opt(param), init, opt(args)))(s)
         .map(|(s, (_, p, i, a))| (s, fix_constructor(p, i, a)))
 }

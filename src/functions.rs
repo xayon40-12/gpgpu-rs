@@ -172,26 +172,20 @@ pub fn fix_newton<'a>(
         ret_type: Some(CF64),
         src: &format!(
             "    const double e = {};
-    const double h = {};
-    const double invh = {};
-    double v = {f}(x{extra});
-    double vp = ({f}(x+h{extra})-v)*invh;
-    double d = 2*e;
-    int i;
-    for(i = 0; i<{max} && d>e; i++){{
+    double v;
+    double old;
+    int i = 0;
+    do{{
         v = {f}(x{extra});
-        vp = ({f}(x+h{extra})-v)*invh;
-        d = x;
-        x -= v/vp;
-        d = fabs(d-x);
-    }}
+        old = x;
+        x -= v*x*e/({f}(x*(1+e){extra})-v);
+        i++;
+    }}while(i<{max} && fabs(old-x)>fabs(x*e));
     if (i=={max}) {{
         return 0.0/0.0;
     }}
     return x;",
             e,
-            e / 10.0,
-            10.0 / e,
             max = max_iter,
             f = f,
             extra = extra

@@ -6,6 +6,7 @@ use crate::pde_parser::SPDETokens::Symb;
 use crate::pde_parser::DPDE;
 use nom::branch::alt;
 use nom::bytes::complete::take_while;
+use nom::bytes::complete::take_while1;
 use nom::sequence::pair;
 use nom::IResult;
 use std::ops::Range;
@@ -54,7 +55,7 @@ pub fn aanum(s: &str) -> IResult<&str, String> {
     let is_alpha = |c| ('A'..='Z').contains(&c) || ('a'..='z').contains(&c);
     let is_num = |c| ('0'..='9').contains(&c);
     pair(
-        take_while(move |c| is_alpha(c) || c == '_'),
+        take_while1(move |c| is_alpha(c) || c == '_'),
         take_while(move |c| is_alpha(c) || is_num(c) || c == '_'),
     )(s)
     .map(|(s, (a, b))| (s, format!("{}{}", a, b)))

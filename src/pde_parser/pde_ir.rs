@@ -577,7 +577,13 @@ pub mod ir_helper {
         a.into().apply_diff(d.into())
     }
 
-    pub fn kt<T: Into<SPDETokens>>(u: T, fu: T, eigs: Vec<T>, dirs: Vec<DimDir>) -> SPDETokens {
+    pub fn kt<T: Into<SPDETokens>>(
+        u: T,
+        fu: T,
+        eigs: Vec<T>,
+        theta: f64,
+        dirs: Vec<DimDir>,
+    ) -> SPDETokens {
         use kt_scheme::*;
         let u = u.into().convert();
         let err = "first parameter of pde_id::ir_helper::kt function must be an SPDETokens::Indx.";
@@ -600,7 +606,7 @@ pub mod ir_helper {
         };
         let mut res = dirs
             .into_iter()
-            .map(|i| kt(&u, &fu, &eigs, i as usize))
+            .map(|i| kt(&u, &fu, &eigs, theta, i as usize))
             .collect::<Vec<_>>();
         if res.len() == 1 {
             res.pop().unwrap()

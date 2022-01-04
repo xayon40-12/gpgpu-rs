@@ -1,20 +1,26 @@
 use crate::pde_parser::pde_ir::{ir_helper::*, SPDETokens::*, *};
 
-pub fn kt(u: &SPDETokens, fu: &SPDETokens, eigs: &Vec<SPDETokens>, d: usize) -> SPDETokens {
+pub fn kt(
+    u: &SPDETokens,
+    fu: &SPDETokens,
+    eigs: &Vec<SPDETokens>,
+    theta: f64,
+    d: usize,
+) -> SPDETokens {
     let iv = Symb(["ivdx", "ivdy", "ivdz"][d].into());
-    (h(u, fu, eigs, d, 1) - h(u, fu, eigs, d, -1)) * iv
+    (h(u, fu, eigs, theta, d, 1) - h(u, fu, eigs, theta, d, -1)) * iv
 }
 
 pub fn h(
     u: &SPDETokens,
     fu: &SPDETokens,
     eigs: &Vec<SPDETokens>,
+    theta: f64,
     d: usize,
     idir: i32,
 ) -> SPDETokens {
     let p = &idx(1, idir, d);
     let m = &idx(-1, idir, d);
-    let theta = 2.0;
     let min = |a, b| func("min".into(), vec![a, b]);
     let max = |a, b| func("max".into(), vec![a, b]);
     let abs = |a| func("fabs".into(), vec![a]);

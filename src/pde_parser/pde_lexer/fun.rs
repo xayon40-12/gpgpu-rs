@@ -98,10 +98,11 @@ fn kt_diff(s: &str) -> IResult<&str, LexerComp> {
     let d = preceded(tag("#KT"), opt(diff_dir));
     let options = opt(delimited(
         char('['),
-        pair(
+        tuple((
             opt(terminated(var, stag(";"))),
+            opt(delimited(stag("theta="), double, stag(";"))),
             separated_list0(stag(","), expr),
-        ),
+        )),
         char(']'),
     ));
     tuple((d, options, space0, term))(s).map(|(s, (d, o, _, t))| (s, kt_constructor(d, o, t)))
@@ -109,10 +110,10 @@ fn kt_diff(s: &str) -> IResult<&str, LexerComp> {
 
 fn kt_constructor(
     dirs: Option<Vec<char>>,
-    options: Option<(Option<LexerComp>, Vec<LexerComp>)>,
+    options: Option<(Option<LexerComp>, Option<f64>, Vec<LexerComp>)>,
     term: LexerComp,
 ) -> LexerComp {
-    let (name, eigenvalues) = options.unwrap_or((None, vec![]));
+    let (name, theta, eigenvalues) = options.unwrap_or((None, None, vec![]));
     let dirs = dirs
         .unwrap_or_default()
         .iter()
@@ -131,9 +132,10 @@ fn kt_constructor(
         current_var = Some(d.borrow().clone());
     });
     let current_var = current_var.expect("Thread error, could not retreive current variable.");
+    let theta = theta.unwrap_or(1.1); // MUSIC default
     name.unwrap_or_else(|| current_var.clone().expect("KT call must be given the name of the variable it operate on if it is not in the context of an equation deffinition. For instance for a variable 'u' with eigenvalue of the Jacobian '2u' and for the expression 'u^2': KT[u;2u](u^2)").into()).bind(|name|
          compact(eigenvalues).bind(|eigenvalues|
-             term.map(|v| kt(name, v, eigenvalues, dirs))
+             term.map(|v| kt(name, v, eigenvalues, theta, dirs))
          ))
 }
 

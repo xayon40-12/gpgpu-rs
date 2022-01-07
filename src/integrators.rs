@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct SPDE {
     pub dvar: String,
     pub expr: Vec<String>, //one String for each dimension of the vectorial pde
+    pub is_eq: bool,
 }
 
 pub struct IntegratorParam {
@@ -130,12 +131,25 @@ fn multistages_kernels(
             "    uint i = x+x_size*(y+y_size*z);\n    dst[i] = src[i] + h*({});",
             &src[3..]
         );
+        let src_eq = format!(
+            "    uint i = x+x_size*(y+y_size*z);\n    dst[i] = {}[i];",
+            &argnames[i]
+        );
 
         needed.push(NewKernel(
             (&Kernel {
                 name: &format!("{}_stage{}", name, i),
-                args,
+                args: args.clone(),
                 src: &src,
+                needed: vec![],
+            })
+                .into(),
+        ));
+        needed.push(NewKernel(
+            (&Kernel {
+                name: &format!("{}_stage{}_eq", name, i),
+                args,
+                src: &src_eq,
                 needed: vec![],
             })
                 .into(),
@@ -160,6 +174,7 @@ fn multistages_algorithm(
                 format!("{}_{}", &name, &d.dvar),
                 d.dvar.clone(),
                 d.expr.len(),
+                d.is_eq,
             )
         })
         .collect::<Vec<_>>();
@@ -226,7 +241,7 @@ fn multistages_algorithm(
                         h.run_arg(&vars[i].0, dim, &args)?;
                         args[time_id] = Param(
                             increment_name,
-                            (*t + stages[s].iter().fold(0.0, |a, i| a + i)).into(),
+                            (*t + stages[s].iter().fold(0.0, |a, i| a + i) * dt).into(),
                         ); // increment time for next stage
                         let mut stage_args = vec![
                             BufArg(
@@ -241,11 +256,13 @@ fn multistages_algorithm(
                             (0..s + 1)
                                 .map(|j| BufArg(&bufs[nb_per_stages * i + (j + 1)], &argnames[j])),
                         );
-                        h.run_arg(
-                            &format!("{}_stage{}", name, s),
-                            D1(d * vars[i].2),
-                            &stage_args,
-                        )?; // vars[i].2 correspond to the vectorial dim of the current pde
+                        let is_eq = vars[i].3;
+                        let stage_name = &if is_eq {
+                            format!("{}_stage{}_eq", name, s)
+                        } else {
+                            format!("{}_stage{}", name, s)
+                        };
+                        h.run_arg(stage_name, D1(d * vars[i].2), &stage_args)?; // vars[i].2 correspond to the vectorial dim of the current pde
                     }
                 }
 

@@ -125,7 +125,9 @@ fn multistages_kernels(
         let mut src = String::new();
         for (i, v) in v.iter().enumerate() {
             args.push(KCBuffer(&argnames[i], CF64));
-            src = format!("{} + {}*{}[i]", src, v, &argnames[i]);
+            if *v != 0.0 {
+                src = format!("{} + {}*{}[i]", src, v, &argnames[i]);
+            }
         }
         src = format!(
             "    uint i = x+x_size*(y+y_size*z);\n    dst[i] = src[i] + h*({});",
